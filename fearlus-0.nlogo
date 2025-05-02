@@ -36,8 +36,9 @@ globals [
 
   climate
   economy
-  break-even
   the-land-allocator
+  climate-t
+  economy-t
 ]
 
 breed [ land-managers land-manager ]
@@ -90,6 +91,7 @@ land-allocators-own [
 
 breed [ sub-populations sub-population ]
 sub-populations-own [
+  name
   p-subpop
   n-removals
   nbr-weight-dist
@@ -151,7 +153,7 @@ to setup
   ; Template setup code
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  print "<program>  Copyright (C) <year>  <name of author>"
+  print "FEARLUS-0  Copyright (C) 2025  The James Hutton Institute"
   print "This program comes with ABSOLUTELY NO WARRANTY."
   print "This is free software, and you are welcome to redistribute it"
   print "under certain conditions. For more information on this and"
@@ -171,11 +173,19 @@ to setup
   ]
   random-seed rng-seed
 
-  carefully [
+;  carefully [
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Model-specific code to implement the setup
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+    set climate-t []
+    if use-climate-file? and file-exists? climate-file [
+      set climate-t read-bitstrings climate-file climate-bitstring-length
+    ]
+    set economy-t []
+    if use-economy-file? and file-exists? economy-file [
+      set economy-t read-bitstrings economy-file economy-bitstring-length
+    ]
 
     initialize-patches
     connect-patches
@@ -187,9 +197,6 @@ to setup
         save-patches patch-file
       ]
     ]
-    ask patches [
-      determine-nw-biophys-match
-    ]
     initialize-land-uses
     if use-lu-file? [
       ifelse file-exists? land-use-file [
@@ -198,26 +205,78 @@ to setup
         save-land-uses land-use-file
       ]
     ]
-    determine-climate
-    determine-economy
+    ifelse length climate-t > 0 [
+      set climate first climate-t
+      set climate-t but-first climate-t
+    ] [
+      set climate bitstring:random climate-bitstring-length 0.5
+      determine-climate
+    ]
+    ifelse length economy-t > 0 [
+      set economy first economy-t
+      set economy-t but-first economy-t
+    ] [
+      set economy bitstring:random economy-bitstring-length 0.5
+      determine-economy
+    ]
+    initialize-sub-populations
     initialize-land-allocator
     ask land-managers [
       allocate-initial-land-uses
     ]
     ask patches [
+      set use next-use
       calculate-yield
     ]
+
+    visualization
 
     if use-go-seed? [
       random-seed go-seed
     ]
-  ] [
-    reset-ticks
+;  ] [
+;    reset-ticks
     ; Set the error? condition
-    output-error error-message
-  ]
+;    output-error error-message
+;  ]
 
   reset-ticks
+end
+
+to visualization
+  ask patches [
+    (ifelse visualize = "Land Uses" [
+      ifelse is-turtle? use [
+        set pcolor [color] of use
+      ] [
+        set pcolor black
+      ]
+    ] visualize = "Land Managers" [
+      ifelse is-turtle? owner [
+        set pcolor [color] of owner
+      ] [
+        set pcolor black
+      ]
+    ] visualize = "Sub-populations" [
+      ifelse is-turtle? owner [
+        set pcolor [[color] of sub-pop] of owner
+      ] [
+        set pcolor black
+      ]
+    ] visualize = "Biophysical Properties" [
+      ifelse biophysical-properties-bit-to-visualize > 0 and biophysical-properties-bit-to-visualize <= patch-bitstring-length [
+        ifelse bitstring:get? biophysical-properties (biophysical-properties-bit-to-visualize - 1) [
+          set pcolor brown
+        ] [
+          set pcolor blue
+        ]
+      ] [
+        set pcolor black
+      ]
+    ] [
+      set pcolor black
+    ])
+  ]
 end
 
 ; {observer} go
@@ -233,7 +292,7 @@ to go
     stop
   ]
 
-  carefully [
+;  carefully [
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Model-specific code to implement time step here
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -271,11 +330,13 @@ to go
     ask land-managers [
       update-strategy
     ]
-  ] [
-    tick
+
+    visualization
+;  ] [
+;    tick
     ; Set the error? condition
-    output-error error-message
-  ]
+;    output-error error-message
+;  ]
   tick
 end
 
@@ -288,47 +349,469 @@ end
 to initialize-patches
   ask patches [
     set biophysical-properties bitstring:random patch-bitstring-length 0.5
+    set yield 0
+    set new-manager? false
+    set prev-uses []
+    set prev-yields []
+    set n-use-change 0
+    set n-mgr-change 0
   ]
 end
 
 ; global
 
 to connect-patches
+  ask patches [
+    let nbrs (patch-set nobody)
+    (ifelse neighbourhood = "Moore" [
+      ask neighbors [
+        set nbrs (patch-set self nbrs)
+      ]
+    ] neighbourhood = "von Neumann" [
+      ask neighbors4 [
+        set nbrs (patch-set self nbrs)
+      ]
+    ] neighbourhood = "Hexagonal" [
+      let x pxcor
+      let y pycor
+      ask neighbors4 [
+        set nbrs (patch-set self nbrs)
+      ]
+      if patch-at -1 1 != nobody [
+        set nbrs (patch-set (patch-at -1 1) nbrs)
+      ]
+      if patch-at 1 -1 != nobody [
+        set nbrs (patch-set (patch-at 1 -1) nbrs)
+      ]
+    ] [
+      output-error (word "Unrecognized neighbourhood \"" neighbourhood "\"")
+    ])
+    set neighbours nbrs
+  ]
 end
 
 ; global
 
 to read-patches [ file-name ]
+  let patch-list csv:from-file file-name
+  let header first patch-list
+  if not member? "x" header or not member? "y" header or not member? "biophysical-properties" header [
+    output-error (word "Header of patch file \"" file-name "\" lacks required column names")
+  ]
+  let xpos position "x" header
+  let ypos position "y" header
+  let bpos position "biophysical-properties" header
+  foreach but-first patch-list [ patch-data ->
+    let x item xpos patch-data
+    let y item ypos patch-data
+    let bp item bpos patch-data
+    if first bp != "b" [
+      output-error (word "Bitstring \"" bp "\" in patch file \"" file-name "\" doesn't start with a \"b\"")
+    ]
+    set bp but-first bp
+    if length bp != patch-bitstring-length [
+      output-error (word "Bitstring \"" bp "\" in patch file \"" file-name "\" is the wrong size for current parameter settings")
+    ]
+    ifelse x >= min-pxcor and x <= max-pxcor and y >= min-pycor and y <= max-pycor [
+      ask patch x y [
+        set biophysical-properties bitstring:from-string bp
+      ]
+    ] [
+      output-warning (word "Patch " x " " y " in patch file \"" file-name "\" is out of this world's bounds")
+    ]
+  ]
 end
 
 ; global
 
 to clump-patches
+  foreach range patch-bitstring-length [ i ->
+    if n-clump-swaps > 0 [
+      let zero []
+      let ones []
+      ask patches [
+        ifelse bitstring:get? biophysical-properties i [
+          set ones lput self ones
+        ] [
+          set zero lput self zero
+        ]
+      ]
+      let n-swaps 0
+      while [ length zero > 0 and n-swaps < n-clump-swaps ] [
+        let a first zero
+        let edge-a [edge-match-count i] of a
+        let corner-a [corner-match-count i] of a
+
+        ; N.B. allow for non-toroidal worlds
+        let edge-nbr-a [count neighbors4] of a
+        let corner-nbr-a [(count neighbors) - (count neighbors4)] of a
+
+        set zero but-first zero
+
+        let success? false
+        let bb nobody
+        foreach ones [ b ->
+          if not success? [
+            let edge-b [edge-match-count i] of b
+            let edge-nbr-b [count neighbors4] of b
+
+            ifelse 2 * (edge-a + edge-b) = (edge-nbr-b + edge-nbr-a) [
+              let corner-b [corner-match-count i] of b
+              let corner-nbr-b [(count neighbors) - (count neighbors4)] of b
+
+              if 2 * (corner-b + corner-a) < (corner-nbr-b + corner-nbr-a) [
+                set success? true
+                set bb b
+              ]
+            ] [
+              if 2 * (edge-b + edge-a) < (edge-nbr-b + edge-nbr-a) [
+                set success? true
+                set bb b
+              ]
+            ]
+          ]
+        ]
+        if success? [
+          ask a [
+            set biophysical-properties bitstring:set biophysical-properties i true
+          ]
+          ask bb [
+            set biophysical-properties bitstring:set biophysical-properties i false
+          ]
+          set ones lput a (remove bb ones)
+          set zero lput bb zero
+          set n-swaps n-swaps + 1
+        ]
+      ]
+      print-progress (word "Clumped bit " (i + 1))
+    ]
+  ]
+end
+
+to-report edge-match-count [ i ]
+  let n 0
+  let bit bitstring:get? biophysical-properties i
+  ask neighbors4 [
+    if bit = bitstring:get? biophysical-properties i [
+      set n n + 1
+    ]
+  ]
+  report n
+end
+
+to-report corner-match-count [ i ]
+  let n 0
+  let bit bitstring:get? biophysical-properties i
+  let n4 neighbors4
+  ask neighbors with [not member? self n4] [
+    if bit = bitstring:get? biophysical-properties i [
+      set n n + 1
+    ]
+  ]
+  report n
 end
 
 ; global
 
 to save-patches [ file-name ]
+  let patch-list [["x" "y" "biophysical-properties"]]
+  foreach n-values world-width [ i -> i + min-pxcor ] [ x ->
+    foreach n-values world-height [ i -> i + min-pycor ] [ y ->
+      set patch-list lput (list x y (word "b" [bitstring:to-string biophysical-properties] of patch x y)) patch-list
+    ]
+  ]
+  csv:to-file file-name patch-list
 end
 
-; patches
+; global
 
-to determine-nw-biophys-match
+to initialize-sub-populations
+  if use-subpop-file? and file-exists? subpop-file [
+    read-subpops subpop-file
+  ]
+
+  let subpop-list get-subpop-list
+
+  if length subpop-list = 0 [
+    output-error "No sub-populations have been specified"
+  ]
+
+  let p-total 0
+  let subpop-names table:make
+  let colours sp-colour-list
+
+  foreach subpop-list [ sp-data ->
+    let p-sp item 0 sp-data
+    let sp-name item 1 sp-data
+    let sp-nw-d parse-dist item 2 sp-data
+    let sp-pi-d parse-dist item 3 sp-data
+    let sp-as-d parse-dist item 4 sp-data
+    let sp-ms-d parse-dist item 5 sp-data
+    let sp-init item 6 sp-data
+    let sp-sats item 7 sp-data
+    let sp-copy item 8 sp-data
+    let sp-expt item 9 sp-data
+
+    if table:has-key? subpop-names sp-name [
+      output-error (word "Duplicate sub-population name \"" sp-name "\"")
+    ]
+
+    if p-sp < 0 or p-total + p-sp > 1.001 [
+      output-error (word "Subpopulation \"" sp-name "\" has invalid probability")
+    ]
+    if sp-name = item 1 (last subpop-list) [
+      if p-total + p-sp < 0.999 [
+        output-error (word "Subpopulation probabilities do not sum near enough to 1: " (p-total + p-sp))
+      ]
+      set p-sp 1 - p-total
+    ]
+
+    set p-total p-total + p-sp
+
+    create-sub-populations 1 [
+      set hidden? true
+      if length colours > 0 [
+        set color first colours
+        set colours but-first colours
+      ]
+      set name sp-name
+      set p-subpop p-sp
+      set n-removals 0
+      set nbr-weight-dist sp-nw-d
+      set p-imitate-dist sp-pi-d
+      set aspiration-dist sp-as-d
+      set memory-size-dist sp-ms-d
+      set initial-strategy-str sp-init
+      set satisfice-strategy-str sp-sats
+      set imitative-strategy-str sp-copy
+      set experiment-strategy-str sp-expt
+    ]
+  ]
+
+  if use-subpop-file? and not file-exists? subpop-file [
+    save-subpops subpop-file
+  ]
+end
+
+to add-subpop-str
+  let subpop-list get-subpop-list
+
+  let p-total 0
+  let subpop-names table:make
+  foreach subpop-list [ sp ->
+    table:put subpop-names (item 1 sp) (item 0 sp)
+    set p-total p-total + (item 0 sp)
+  ]
+  if table:has-key? subpop-names subpop-name [
+    user-message (word "There is already a sub-population with name \"" subpop-name "\"\nNames must be unique.")
+    stop
+  ]
+  if p-total + new-subpop-p > 1 [
+    user-message (word "Sub-population probabilities must sum to 1\nUse Add Last Subpop")
+    stop
+  ]
+
+  set subpop-list lput (list
+    new-subpop-p
+    subpop-name
+    new-subpop-nbr-weight-dist
+    new-subpop-p-imitate-dist
+    new-subpop-aspiration-dist
+    new-subpop-memory-size-dist
+    new-subpop-initial-strategy
+    new-subpop-satisfice-strategy
+    new-subpop-imitative-strategy
+    new-subpop-experiment-strategy
+  ) subpop-list
+
+  update-subpop-str subpop-list
+end
+
+to add-subpop-str-last
+  let subpop-list get-subpop-list
+
+  let p-total 0
+  foreach subpop-list [ sp ->
+    set p-total p-total + (item 0 sp)
+  ]
+
+  set new-subpop-p 1 - p-total
+
+  add-subpop-str
+end
+
+to del-subpop-str
+  let subpop-list get-subpop-list
+  set subpop-list filter [ sp -> subpop-name != item 1 sp ] subpop-list
+  update-subpop-str subpop-list
+end
+
+to equalize-subpop-str-p
+  let subpop-list get-subpop-list
+
+  if length subpop-list > 0 [
+    let eq-p-subpop 1 / (length subpop-list)
+    foreach n-values (length subpop-list) [i -> i] [ i ->
+      set subpop-list replace-item i subpop-list (replace-item 0 (item i subpop-list) eq-p-subpop)
+    ]
+  ]
+
+  update-subpop-str subpop-list
+end
+
+to-report get-subpop-list
+  if length subpop-str = 0 or first subpop-str != "[" [
+    set subpop-str "[]"
+  ]
+  report read-from-string subpop-str
+end
+
+to update-subpop-str [ subpop-list ]
+  ifelse length subpop-list = 0 [
+    set subpop-str "[]"
+  ] [
+    set subpop-str (word "[" (reduce [ [so-far next] -> (word so-far "\n" next) ] (map [ a -> format-subpop-list a ] subpop-list)) "]")
+  ]
+end
+
+to-report format-subpop-list [ subpop-list ]
+  let qstr reduce [[so-far next] -> (word so-far " \"" next "\"")] subpop-list
+  report (word "[" qstr "]")
+end
+
+to save-subpops [ file-name ]
+  if length subpop-str = 0 or first subpop-str != "[" [
+    set subpop-str "[]"
+  ]
+  let subpop-list read-from-string subpop-str
+
+  set subpop-list fput subpop-file-headings subpop-list
+
+  csv:to-file file-name subpop-list
+end
+
+to-report subpop-file-headings
+  report ["P" "name" "nbr-weight-dist" "aspiration-dist" "memory-size-dist"
+    "initial-strategy" "satisfice-strategy" "imitative-strategy" "experiment-strategy"]
+end
+
+to read-subpops [ file-name ]
+  let subpop-read csv:from-file file-name
+  let headers first subpop-read
+  let htable table:make
+
+  foreach subpop-file-headings [ colname ->
+    ifelse member? colname headers [
+      table:put htable colname (position colname headers)
+    ] [
+      output-error (word "Column name \"" colname "\" not found in subpop-file \"" file-name "\"")
+    ]
+  ]
+
+  let subpop-list []
+
+  foreach but-first subpop-read [ sp-data ->
+    let subpop-data []
+    foreach subpop-file-headings [ colname ->
+      set subpop-data lput (item (table:get htable colname) sp-data) subpop-data
+    ]
+    set subpop-list lput subpop-data subpop-list
+  ]
+
+  update-subpop-str subpop-list
 end
 
 ; global
 
 to initialize-land-uses
+  let colours lu-colour-list
+  create-land-uses n-land-use [
+    set hidden? true
+    set match bitstring:random (patch-bitstring-length + climate-bitstring-length + economy-bitstring-length) 0.5
+    set wild-card bitstring:random (patch-bitstring-length + climate-bitstring-length + economy-bitstring-length) p-lu-wild
+    if length colours > 0 [
+      set color first colours
+      set colours but-first colours
+    ]
+  ]
 end
 
 ; global
 
 to read-land-uses [ file-name ]
+  ask land-uses [
+    die
+  ]
+  let lu-list csv:from-file file-name
+  let header first lu-list
+  if not member? "match" header or not member? "wild-card" header [
+    output-error (word "Header of land use file \"" file-name "\" lacks required column names")
+  ]
+  let matchpos position "match" header
+  let wildpos position "wild-card" header
+  let cpos -1
+  if member? "colour" header [
+    set cpos position "colour" header
+  ]
+
+  foreach but-first lu-list [ lu-data ->
+    let mstr item matchpos lu-data
+    if first mstr != "b" [
+      output-error (word "Match bitstring \"" mstr "\" in land use file \"" file-name "\" doesn't start with a \"b\"")
+    ]
+    set mstr but-first mstr
+    if length mstr != patch-bitstring-length + climate-bitstring-length + economy-bitstring-length [
+      output-error (word "Land use bitstrings in \"" file-name "\" are the wrong size for current parameter settings")
+    ]
+    let wstr item wildpos lu-data
+    if first wstr != "b" [
+      output-error (word "Wildcard bitstring \"" wstr "\" in land use file \"" file-name "\" doesn't start with a \"b\"")
+    ]
+    set wstr but-first wstr
+    if length mstr != patch-bitstring-length + climate-bitstring-length + economy-bitstring-length [
+      output-error (word "Land use bitstrings in \"" file-name "\" are the wrong size for current parameter settings")
+    ]
+    create-land-uses 1 [
+      set hidden? true
+      set match bitstring:from-string mstr
+      set wild-card bitstring:from-string wstr
+      if cpos >= 0 [
+        set color item cpos lu-data
+      ]
+    ]
+  ]
+end
+
+; global
+
+to-report read-bitstrings [file-name expected-size]
+  if not file-exists? file-name [
+    output-error (word "File of bitstrings \"" file-name "\" not found")
+  ]
+  let bitstring-list []
+  file-open file-name
+  while [ not file-at-end? ] [
+    let str file-read-line
+    if first str = "b" [
+      set str but-first str
+    ]
+    if length str != expected-size [
+      output-error (word "Bitstring \"" str "\" is not of expected size " expected-size)
+    ]
+    set bitstring-list lput bitstring:from-string str bitstring-list
+  ]
+  file-close
+  report bitstring-list
 end
 
 ; global
 
 to save-land-uses [ file-name ]
+  let lu-list [["match" "wild-card" "colour"]]
+  ask land-uses [
+    set lu-list lput (list (word "b" bitstring:to-string match) (word "b" bitstring:to-string wild-card) color) lu-list
+  ]
+  csv:to-file file-name lu-list
 end
 
 ; global
@@ -351,6 +834,11 @@ end
 ; land-managers
 
 to allocate-initial-land-uses
+  foreach parcels-list [ parcel ->
+    ask initial-strategy [
+      choose-land-use parcel myself
+    ]
+  ]
 end
 
 
@@ -388,11 +876,7 @@ end
 to allocate-land-uses
   foreach parcels-list [ parcel ->
 
-    (ifelse ticks = 0 [
-      ask initial-strategy [
-        choose-land-use parcel myself
-      ]
-    ] ticks > 1 and [last-yield] of parcel < aspiration [
+    ifelse [last-yield] of parcel < aspiration [
       ifelse random-float 1 <= p-imitate [
         ask imitative-strategy [
           choose-land-use parcel myself
@@ -406,7 +890,8 @@ to allocate-land-uses
       ask satisfice-strategy [
         choose-land-use parcel myself
       ]
-    ])
+    ]
+
   ]
 end
 
@@ -423,11 +908,33 @@ end
 ; global
 
 to determine-climate
+  ifelse use-climate-file? and length climate-t > 0 [
+    set climate first climate-t
+    set climate-t but-first climate-t
+  ] [
+    set climate bitstring:jitter climate p-climate-change
+    if use-climate-file? [
+      file-open climate-file
+      file-print (word "b" bitstring:to-string climate)
+      file-close
+    ]
+  ]
 end
 
 ; global
 
 to determine-economy
+  ifelse use-economy-file? and length economy-t > 0 [
+    set economy first economy-t
+    set economy-t but-first economy-t
+  ] [
+    set economy bitstring:jitter economy p-economy-change
+    if use-economy-file? [
+      file-open economy-file
+      file-print (word "b" bitstring:to-string economy)
+      file-close
+    ]
+  ]
 end
 
 ; patches
@@ -441,7 +948,7 @@ end
 
 to harvest
   foreach parcels-list [ parcel ->
-    set wealth wealth + ([yield] of parcel) - break-even
+    set wealth wealth + ([yield] of parcel) - break-even-threshold
   ]
   set climate-memory lput climate climate-memory
   if length climate-memory > memory-size [
@@ -457,7 +964,7 @@ end
 
 to sell-land
   set some-parcels-lost? false
-  while [ wealth < 0 and length parcels-list < 0 ] [
+  while [ wealth < 0 and length parcels-list > 0 ] [
     let parcel first parcels-list
     ask the-land-allocator [
       set parcels-for-sale lput parcel parcels-for-sale
@@ -656,79 +1163,85 @@ to-report spawn-land-manager
   report lm
 end
 
-; sub-population
+; land-manager
 ; CautiousImitativeOptimumStrategy not implemented
 ; Cautious uses expected variance as the score rather than expected mean -- not in any paper
 
 to-report parse-strategy [ strat-str is-hist? is-imit? ]
   let s nobody
-  (ifelse strat-str = "Null" or strat-str = "none" or strat-str = "NoStrategy" [
+  (ifelse strat-str = "Null" or strat-str = "none" or strat-str = "NoStrategy" or strat-str = "{}" [
     set s no-strategy
-  ] strat-str = "Habit" or strat-str = "habit" or strat-str = "HabitStrategy" [
+  ] strat-str = "Habit" or strat-str = "habit" or strat-str = "HabitStrategy" or strat-str = "H" [
     set s habit-strategy
-  ] strat-str = "Random" or strat-str = "random" or strat-str = "RandomStrategy" [
+  ] strat-str = "Random" or strat-str = "random" or strat-str = "RandomStrategy" or strat-str = "R" or strat-str = "RS" [
     set s random-strategy
-  ] strat-str = "Specialist" or strat-str = "eccentric-specialist" or strat-str = "EccentricSpecialistStrategy" [
+  ] strat-str = "Specialist" or strat-str = "eccentric-specialist" or strat-str = "EccentricSpecialistStrategy" or strat-str = "X" [
     set s eccentric-specialist-strategy
-  ] strat-str = "Fickle" or strat-str = "fickle" or strat-str = "FickleStrategy" [
+  ] strat-str = "Fickle" or strat-str = "fickle" or strat-str = "FickleStrategy" or strat-str = "F" [
     set s fickle-strategy
-  ] strat-str = "BestMatch" or strat-str = "match-best" or strat-str = "StochasticMatchWeightedOptimumStrategy" [
+  ] strat-str = "BestMatch" or strat-str = "match-best" or strat-str = "StochasticMatchWeightedOptimumStrategy" or strat-str = "OS" [
     set s match-weighted-optimum-strategy
-  ] strat-str = "StableMatch" or strat-str = "match-ordered" or strat-str = "MatchWeightedOptimumStrategy" [
+  ] strat-str = "StableMatch" or strat-str = "match-ordered" or strat-str = "MatchWeightedOptimumStrategy" or strat-str = "OD" [
     set s match-weighted-deterministic-strategy
-  ] strat-str = "WeightedMatch" or strat-str = "match-weighted" or strat-str = "MatchWeightedRandomStrategy" [
+  ] strat-str = "WeightedMatch" or strat-str = "match-weighted" or strat-str = "MatchWeightedRandomStrategy" or strat-str = "O" [
     set s match-weighted-random-strategy
-  ] strat-str = "StableLast" or strat-str = "last-order" or strat-str = "LastYearsOptimumStrategy" [
+  ] strat-str = "StableLast" or strat-str = "last-order" or strat-str = "LastYearsOptimumStrategy" or strat-str = "LD" [
     set s last-years-optimum-strategy
-  ] strat-str = "LastBest" or strat-str = "last-best" or strat-str = "StochasticLastYearsOptimumStrategy" [
+  ] strat-str = "LastBest" or strat-str = "last-best" or strat-str = "StochasticLastYearsOptimumStrategy" or strat-str = "LS" [
     set s stochastic-last-years-optimum-strategy
   ] strat-str = "WeightedLast" or strat-str = "last-weighted" [
     set s weighted-last-years-optimum-strategy
-  ] strat-str = "StableLastN" or strat-str = "last-n-order" or strat-str = "LastNYearsOptimumStrategy" [
+  ] strat-str = "StableLastN" or strat-str = "last-n-order" or strat-str = "LastNYearsOptimumStrategy" or strat-str = "LnD" [
     set s last-n-years-optimum-strategy
-  ] strat-str = "LastNBest" or strat-str = "last-n-best" or strat-str = "StochasticLastNYearsOptimumStrategy" [
+  ] strat-str = "LastNBest" or strat-str = "last-n-best" or strat-str = "StochasticLastNYearsOptimumStrategy" or strat-str = "LnS" [
     set s stochastic-last-n-years-strategy
   ] strat-str = "WeightedLastN" or strat-str = "last-n-weighted" [
     set s weighted-last-n-years-strategy
   ] strat-str = "MajorityBest" or strat-str = "majority-best"
-    or strat-str = "MajorityCopyingStrategy" or strat-str = "SimpleRandomOptimumCopyingStrategy" [
+    or strat-str = "MajorityCopyingStrategy" or strat-str = "SimpleRandomOptimumCopyingStrategy" or strat-str = "SSI" [
     set s majority-copying-strategy
-  ] strat-str = "WeightedMajority" or strat-str = "majority-weighted" or strat-str = "SimpleCopyingStrategy" [
+  ] strat-str = "WeightedMajority" or strat-str = "majority-weighted" or strat-str = "SimpleCopyingStrategy" or strat-str = "SI" [
     set s simple-copying-strategy
   ] strat-str = "PhysicalMajorityBest" or strat-str = "physical-majority-best" [
     set s physical-majority-copying-strategy
-  ] strat-str = "PhysicalWeightedMajority" or strat-str = "physical-majority-weighted" or strat-str = "SimplePhysicalCopyingStrategy" [
+  ] strat-str = "PhysicalWeightedMajority" or strat-str = "physical-majority-weighted"
+    or strat-str = "SimplePhysicalCopyingStrategy" or strat-str = "Sp" [
     set s physical-simple-copying-strategy
-  ] strat-str = "CopyLastBest" or strat-str = "last-best-copy" or strat-str = "NeighbouringOptimumStrategy" [
+  ] strat-str = "CopyLastBest" or strat-str = "last-best-copy" or strat-str = "NeighbouringOptimumStrategy" or strat-str = "N" [
     set s last-years-best-copying-strategy
   ] strat-str = "CopyWeightedLast" or strat-str = "last-best-weighted" [
     set s last-years-weighted-copying-strategy
   ] strat-str = "CopyBestMatch" or strat-str = "match-best-copy" [
     set s match-best-copying-strategy
-  ] strat-str = "CopyWeightedMatch" or strat-str = "match-weighted-copy" or strat-str = "ParcelWeightedCopyingStrategy" [
+  ] strat-str = "CopyWeightedMatch" or strat-str = "match-weighted-copy" or strat-str = "ParcelWeightedCopyingStrategy" or strat-str = "P" [
     set s match-weighted-copying-strategy
-  ] strat-str = "CopyOther" or strat-str = "other-copying" or strat-str = "RandomCopyingStrategy" [
+  ] strat-str = "CopyOther" or strat-str = "other-copying" or strat-str = "RandomCopyingStrategy" or strat-str = "RC" [
     set s other-copying-strategy
-  ] strat-str = "SmartCopyBest" or strat-str = "smart-best-copy" or strat-str = "StochasticImitativeOptimumStrategy" [
+  ] strat-str = "SmartCopyBest" or strat-str = "smart-best-copy" or strat-str = "StochasticImitativeOptimumStrategy"
+    or strat-str = "IS" or strat-str = "II" [
     set s intelligent-best-copying-strategy
-  ] strat-str = "StableSmartCopy" or strat-str = "smart-ordered-copy" or strat-str = "ImitativeOptimumStrategy" [
+  ] strat-str = "StableSmartCopy" or strat-str = "smart-ordered-copy" or strat-str = "ImitativeOptimumStrategy" or strat-str = "ID" [
     set s intelligent-order-copying-strategy
   ] strat-str = "WeightedSmartCopy" or strat-str = "smart-weighted-copy" [
     set s intelligent-weighted-copying-strategy
-  ] strat-str = "WeightedYieldCopy" or strat-str = "yield-weighted-copy" or strat-str = "YieldWeightedCopyingStrategy" [
+  ] strat-str = "WeightedYieldCopy" or strat-str = "yield-weighted-copy" or strat-str = "YieldWeightedCopyingStrategy" or strat-str = "Y" [
     set s yield-weighted-copying-strategy
   ] strat-str = "MatchWeightedYieldCopy" or strat-str = "match-yield-weighted-copy"
-    or strat-str = "ParcelCorrectedYieldWeightedCopyingStrategy" [
+    or strat-str = "ParcelCorrectedYieldWeightedCopyingStrategy" or strat-str = "YP" [
     set s parcel-corrected-yield-weighted-copying-strategy
   ] strat-str = "MeanWeightedYieldCopy" or strat-str = "yield-mean-weighted-copy" [
     set s yield-average-weighted-copying-strategy
-  ] strat-str = "WeightedYieldTCopy" or strat-str = "yield-t-weighted-copy" or strat-str = "YieldWeightedTemporalCopyingStrategy" [
+  ] strat-str = "WeightedYieldTCopy" or strat-str = "yield-t-weighted-copy" or strat-str = "YieldWeightedTemporalCopyingStrategy"
+    or strat-str = "YI" [
     set s yield-weighted-temporal-copying-strategy
-  ] strat-str = "MeanWeightedYieldTCopy" or strat-str = "yield-t-mean-weighted-copy" or strat-str = "YieldAverageWeightedTemporalCopyingStrategy" [
+  ] strat-str = "MeanWeightedYieldTCopy" or strat-str = "yield-t-mean-weighted-copy"
+    or strat-str = "YieldAverageWeightedTemporalCopyingStrategy" or strat-str = "BI" [
     set s yield-average-weighted-temporal-copying-strategy
-  ] strat-str = "MeanYieldTBestCopy" or strat-str = "yield-t-mean-best-copy" or strat-str = "YieldRandomOptimumTemporalCopyingStrategy" [
+  ] strat-str = "MeanYieldTBestCopy" or strat-str = "yield-t-mean-best-copy"
+    or strat-str = "YieldRandomOptimumTemporalCopyingStrategy" or strat-str = "SBI" [
     set s yield-random-optimum-temporal-copying-strategy
-  ] strat-str = "YieldTBestCopy" or strat-str = "yield-t-best-copy" or strat-str = "YieldTotalRandomOptimumTemporalCopyingStrategy" [
+  ] strat-str = "YieldTBestCopy" or strat-str = "yield-t-best-copy"
+    or strat-str = "YieldTotalRandomOptimumTemporalCopyingStrategy" or strat-str = "SYI" [
     set s yield-total-random-optimum-temporal-copying-strategy
   ] [
     output-error (word "Strategy \"" strat-str "\" not recognized")
@@ -920,17 +1433,19 @@ end
 to-report majority-copying-algorithm [ lp lm best? ]
   let lu-table table:make
   ask land-uses [
-    table:put lu-table self 0
+    table:put lu-table who 0
   ]
-  foreach parcels-list [ parcel ->
-    table:put lu-table ([use] of parcel) (1 + table:get lu-table ([use] of parcel))
-  ]
-  ask social-neighbours [
+  ask lm [
     foreach parcels-list [ parcel ->
-      table:put lu-table ([use] of parcel) (nbr-weight + table:get lu-table ([use] of parcel))
+      table:put lu-table ([[who] of use] of parcel) (1 + table:get lu-table ([[who] of use] of parcel))
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        table:put lu-table ([[who] of use] of parcel) (nbr-weight + table:get lu-table ([[who] of use] of parcel))
+      ]
     ]
   ]
-  report ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table]
+  report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
 to-report physical-majority-copying-strategy
@@ -944,15 +1459,17 @@ end
 to-report physical-majority-copying-algorithm [ lp lm best? ]
   let lu-table table:make
   ask land-uses [
-    table:put lu-table self 0
+    table:put lu-table who 0
   ]
-  foreach parcels-list [ parcel ->
-    table:put lu-table ([use] of parcel) (1 + table:get lu-table ([use] of parcel))
+  ask lm [
+    foreach parcels-list [ parcel ->
+      table:put lu-table ([[who] of use] of parcel) (1 + table:get lu-table ([[who] of use] of parcel))
+    ]
+    ask parcel-neighbours [
+      table:put lu-table ([who] of use) nbr-weight + table:get lu-table ([who] of use)
+    ]
   ]
-  ask parcel-neighbours [
-    table:put lu-table use nbr-weight + table:get lu-table use
-  ]
-  report ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table]
+  report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
 to-report last-years-best-copying-strategy
@@ -967,21 +1484,23 @@ to-report last-years-copying-algorithm [ lp lm best? ]
   let bp [biophysical-properties] of lp
   let lu-table table:make
   ask land-uses [
-    table:put lu-table self 0
+    table:put lu-table who 0
   ]
-  foreach parcels-list [ parcel ->
-    let lu [use] of parcel
-    let score [match-result bp] of lu
-    table:put lu-table lu score
-  ]
-  ask social-neighbours [
+  ask lm [
     foreach parcels-list [ parcel ->
       let lu [use] of parcel
       let score [match-result bp] of lu
-      table:put lu-table lu (nbr-weight * score)
+      table:put lu-table ([who] of lu) score
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        let lu [use] of parcel
+        let score [match-result bp] of lu
+        table:put lu-table ([who] of lu) (nbr-weight * score)
+      ]
     ]
   ]
-  report ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table]
+  report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
 to-report match-best-copying-strategy
@@ -996,21 +1515,23 @@ to-report match-copying-algorithm [ lp lm best? ]
   let bp [biophysical-properties] of lp
   let lu-table table:make
   ask land-uses [
-    table:put lu-table self 0
+    table:put lu-table who 0
   ]
-  foreach parcels-list [ parcel ->
-    let lu [use] of parcel
-    let score [parcel-match-result bp] of lu
-    table:put lu-table lu (score + table:get lu-table lu)
-  ]
-  ask social-neighbours [
+  ask lm [
     foreach parcels-list [ parcel ->
       let lu [use] of parcel
       let score [parcel-match-result bp] of lu
-      table:put lu-table lu ((nbr-weight * score) + table:get lu-table lu)
+      table:put lu-table ([who] of lu) (score + table:get lu-table ([who] of lu))
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        let lu [use] of parcel
+        let score [parcel-match-result bp] of lu
+        table:put lu-table ([who] of lu) ((nbr-weight * score) + table:get lu-table ([who] of lu))
+      ]
     ]
   ]
-  report ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table]
+  report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
 to-report other-copying-strategy
@@ -1020,18 +1541,18 @@ end
 to-report other-copying-algorithm [ lp lm ]
   let lp-lu [use] of lp
   let lu-table table:make
-  ask (turtle-set self social-neighbours) [
+  ask (turtle-set lm [social-neighbours] of lm) [
     foreach parcels-list [ parcel ->
       let lu [use] of parcel
       if lu != lp-lu [
-        table:put lu-table lu 1
+        table:put lu-table ([who] of lu) 1
       ]
     ]
   ]
   ifelse table:length lu-table = 0 [
     report lp-lu
   ] [
-    report weighted-choice-table lu-table
+    report land-use (weighted-choice-table lu-table)
   ]
 end
 
@@ -1049,23 +1570,26 @@ end
 
 to-report intelligent-copying-algorithm [lp lm best? order?]
   let lu-table table:make
-  foreach parcels-list [ parcel ->
-    let lu [use] of parcel
-    if not table:has-key? lu-table lu [
-      table:put lu-table lu ([expected-yield parcel] of lp)
-    ]
-  ]
-  ask social-neighbours [
+
+  ask lm [
     foreach parcels-list [ parcel ->
       let lu [use] of parcel
-      if not table:has-key? lu-table lu [
-        table:put lu-table lu ([expected-yield parcel] of lp) * nbr-weight
+      if not table:has-key? lu-table ([who] of lu) [
+        table:put lu-table ([who] of lu) ([expected-yield parcel] of lu)
+      ]
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        let lu [use] of parcel
+        if not table:has-key? lu-table ([who] of lu) [
+          table:put lu-table ([who] of lu) ([expected-yield parcel] of lu) * nbr-weight
+        ]
       ]
     ]
   ]
-  report ifelse-value best? [ifelse-value order?
+  report land-use (ifelse-value best? [ifelse-value order?
     [deterministic-best-choice-table lu-table] [best-choice-table lu-table]
-  ] [weighted-choice-table lu-table]
+  ] [weighted-choice-table lu-table])
 end
 
 to-report yield-weighted-copying-strategy
@@ -1085,28 +1609,30 @@ to-report yield-copying-algorithm [lp lm mean? correct-bp?]
   let lu-n-table table:make
   let bp [biophysical-properties] of lp
   ask land-uses [
-    table:put lu-table self 0
-    table:put lu-n-table self 0
+    table:put lu-table who 0
+    table:put lu-n-table who 0
   ]
-  foreach parcels-list [ parcel ->
-    let lu [use] of parcel
-    let score yield
-    if correct-bp? [
-      set score score * bp bitstring:parity [biophysical-properties] of parcel
-    ]
-    table:put lu-table lu (score + table:get lu-table lu)
-    table:put lu-n-table lu (1 + table:get lu-n-table lu)
-  ]
-  ask social-neighbours [
+  ask lm [
     foreach parcels-list [ parcel ->
-      let lu [use] of parcel
-      let score yield * nbr-weight
+      let lu [[who] of use] of parcel
+      let score yield
       if correct-bp? [
-        let other-bp [biophysical-properties] of parcel
-        set score score * (bp bitstring:parity (bitstring:jitter other-bp ([p-nbr-mutate] of lm)))
+        set score score * bp bitstring:parity [biophysical-properties] of parcel
       ]
       table:put lu-table lu (score + table:get lu-table lu)
       table:put lu-n-table lu (1 + table:get lu-n-table lu)
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        let lu [[who] of use] of parcel
+        let score yield * nbr-weight
+        if correct-bp? [
+          let other-bp [biophysical-properties] of parcel
+          set score score * (bp bitstring:parity (bitstring:jitter other-bp ([p-nbr-mutate] of lm)))
+        ]
+        table:put lu-table lu (score + table:get lu-table lu)
+        table:put lu-n-table lu (1 + table:get lu-n-table lu)
+      ]
     ]
   ]
   if mean? [
@@ -1114,7 +1640,7 @@ to-report yield-copying-algorithm [lp lm mean? correct-bp?]
       table:put lu-table key (table:get lu-table key / table:get lu-n-table key)
     ]
   ]
-  report weighted-choice-table lu-table
+  report land-use (weighted-choice-table lu-table)
 end
 
 to-report yield-weighted-temporal-copying-strategy
@@ -1137,40 +1663,43 @@ to-report temporal-yield-copying-algorithm [lp lm best? mean?]
   let lu-table table:make
   let lu-n-table table:make
   ask land-uses [
-    table:put lu-table self 0
-    table:put lu-n-table self 0
+    table:put lu-table who 0
+    table:put lu-n-table who 0
   ]
-  let mem [memory-size] of lm
-  foreach parcels-list [ parcel ->
-    let y-list reverse [prev-yields] of parcel
-    let u-list reverse [prev-uses] of parcel
-    repeat mem [
-      if length y-list > 0 [
-        let u first u-list
-        let y first y-list
 
-        table:put lu-table u (y + table:get lu-table u)
-        table:put lu-n-table u (1 + table:get lu-n-table u)
-
-        set u-list but-first u-list
-        set y-list but-first y-list
-      ]
-    ]
-  ]
-  ask social-neighbours [
+  ask lm [
+    let mem memory-size
     foreach parcels-list [ parcel ->
       let y-list reverse [prev-yields] of parcel
       let u-list reverse [prev-uses] of parcel
       repeat mem [
         if length y-list > 0 [
-          let u first u-list
+          let u [who] of (first u-list)
           let y first y-list
 
-          table:put lu-table u (nbr-weight * y) + table:get lu-table u
+          table:put lu-table u (y + table:get lu-table u)
           table:put lu-n-table u (1 + table:get lu-n-table u)
 
           set u-list but-first u-list
           set y-list but-first y-list
+        ]
+      ]
+    ]
+    ask social-neighbours [
+      foreach parcels-list [ parcel ->
+        let y-list reverse [prev-yields] of parcel
+        let u-list reverse [prev-uses] of parcel
+        repeat mem [
+          if length y-list > 0 [
+            let u [who] of (first u-list)
+            let y first y-list
+
+            table:put lu-table u (nbr-weight * y) + table:get lu-table u
+            table:put lu-n-table u (1 + table:get lu-n-table u)
+
+            set u-list but-first u-list
+            set y-list but-first y-list
+          ]
         ]
       ]
     ]
@@ -1180,7 +1709,7 @@ to-report temporal-yield-copying-algorithm [lp lm best? mean?]
       table:put lu-table key (table:get lu-table key / table:get lu-n-table key)
     ]
   ]
-  report ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table]
+  report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
 ; parcel
@@ -1190,7 +1719,7 @@ to-report expected-yield [ other-lp ]
   if owner != [owner] of other-lp [
     set other-bp bitstring:jitter other-bp ([p-nbr-mutate] of owner)
   ]
-  let anti-match biophysical-properties bitstring:xor other-bp
+  let anti-match bitstring:count1 (biophysical-properties bitstring:xor other-bp)
   let lubits patch-bitstring-length + climate-bitstring-length + economy-bitstring-length
   let eyield 0
   let denom combinations lubits yield
@@ -1198,7 +1727,162 @@ to-report expected-yield [ other-lp ]
     set eyield eyield + ((yield + anti-match - (2 * i)) * (combinations anti-match i)
       * (combinations (lubits - anti-match) (yield - i)) / denom)
   ]
+  report eyield
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Presets
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to set-env-param-imitation [environment]
+  set neighbourhood "Moore"
+  set patch-price 20
+  set break-even-threshold 10.5
+  set p-economy-change 0
+  set economy-bitstring-length 0
+  set neighbour-weight-adjust 0
+  set neighbour-noise-min 0
+  set neighbour-noise-max 0
+  set n-land-use 6
+  set n-clump-swaps 0
+  set p-lu-wild 0
+  (ifelse environment = 1 [
+    set patch-bitstring-length 1
+    set climate-bitstring-length 19
+    set p-climate-change 0.1
+  ] environment = 2 [
+    set patch-bitstring-length 10
+    set climate-bitstring-length 10
+    set p-climate-change 0.1
+  ] environment = 3 [
+    set patch-bitstring-length 1
+    set climate-bitstring-length 19
+    set p-climate-change 0.5
+  ] [
+    output-error "Environment should be 1, 2 or 3"
+  ])
+end
+
+to add-subpop-imitation [subpop]
+  (ifelse subpop = "RS" [
+    set subpop-name "RS"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "Null"
+    set new-subpop-experiment-strategy "Random"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "OS" [
+    set subpop-name "OS"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "Null"
+    set new-subpop-experiment-strategy "BestMatch"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "OD" [
+    set subpop-name "OD"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "Null"
+    set new-subpop-experiment-strategy "StableMatch"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "LS" [
+    set subpop-name "LS"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "Null"
+    set new-subpop-experiment-strategy "LastBest"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "LD" [
+    set subpop-name "LD"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "Null"
+    set new-subpop-experiment-strategy "StableLast"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "SI" [
+    set subpop-name "SI"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "WeightedMajority"
+    set new-subpop-experiment-strategy "Null"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "1"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "YI" [
+    set subpop-name "YI"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "WeightedYieldCopy"
+    set new-subpop-experiment-strategy "Null"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "1"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "HYI" [
+    set subpop-name "HYI"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Habit"
+    set new-subpop-imitative-strategy "WeightedYieldCopy"
+    set new-subpop-experiment-strategy "Null"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "1"
+    set new-subpop-aspiration-dist "11"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "HRYI" [
+    set subpop-name "HRYI"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Habit"
+    set new-subpop-imitative-strategy "WeightedYieldCopy"
+    set new-subpop-experiment-strategy "Random"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "0.9375"
+    set new-subpop-aspiration-dist "11"
+    set new-subpop-memory-size-dist "1"
+  ] subpop = "II" [
+    set subpop-name "II"
+    set new-subpop-p 0.5
+    set new-subpop-initial-strategy "Random"
+    set new-subpop-satisfice-strategy "Null"
+    set new-subpop-imitative-strategy "SmartCopyBest"
+    set new-subpop-experiment-strategy "Null"
+    set new-subpop-nbr-weight-dist "1"
+    set new-subpop-p-imitate-dist "1"
+    set new-subpop-aspiration-dist "21"
+    set new-subpop-memory-size-dist "1"
+  ] [
+    output-error (word "Sub-population \"" subpop "\" not in Polhill et al. (2001)")
+  ])
+  add-subpop-str
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Utilities
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report combinations [ n r ]
   if n < 0 or r < 0 or r > n [
@@ -1211,14 +1895,31 @@ to-report combinations [ n r ]
   report comb
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Utilities
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report parse-dist [ dist-str ]
+  if member? (first dist-str) map [ i -> (word i) ] n-values 10 [ i -> i ] [
+    report (list dist-str)
+  ]
+  if last dist-str != "]" or not member? "[" dist-str [
+    output-error (word "Invalid distribution string \"" dist-str "\" -- no parameters in square brackets")
+  ]
+  set dist-str but-last dist-str
+  let name-param (csv:from-row dist-str "[")
+  if length name-param != 2 [
+    output-error (word "Invalid distribution string \"" dist-str "\" -- too many open square brackets")
+  ]
+  let param-list (csv:from-row (item 1 name-param) " ")
+  report fput (item 0 name-param) param-list
+end
 
 ; utility
 
 to-report sample [ dist ]
   let dist-name first dist
+
+  if member? first dist-name map [ i -> (word i) ] n-values 10 [ i -> i ] [
+    report read-from-string dist-name
+  ]
+
   let dist-parm but-first dist
   (ifelse dist-name = "uniform" or dist-name = "U" [
     if length dist-parm < 2 or item 0 dist-parm > item 1 dist-parm [
@@ -1365,7 +2066,7 @@ to-report best-choice-lists [ options weights ]
         ifelse-value (item (first so-far) weights < item next weights) [ (list next) ] [ so-far ]
       ]
     ]
-  ] fput [] weights
+  ] fput [] range length weights
   report item (one-of ixes) options
 end
 
@@ -1376,7 +2077,7 @@ to-report deterministic-best-choice-lists [ options weights ]
         ifelse-value (item (first so-far) weights < item next weights) [ (list next) ] [ so-far ]
       ]
     ]
-  ] fput [] weights
+  ] fput [] range length weights
   let choice item first ixes options
   if is-turtle? choice and length ixes > 1 [
     let id [who] of choice
@@ -1389,6 +2090,15 @@ to-report deterministic-best-choice-lists [ options weights ]
     ]
   ]
   report choice
+end
+
+to-report lu-colour-list
+  report (list (green - 1) (brown - 2) (yellow - 2) (lime - 2) (turquoise - 1)
+    (green + 1) (turquoise + 2) (brown + 1) (lime + 1) (brown - 3) (green - 2) (yellow - 3) )
+end
+
+to-report sp-colour-list
+  report (list (red + 1) (blue - 1) (cyan + 1)  (magenta - 1) (pink - 2) (orange - 1) (violet - 1) (sky + 1) )
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1499,13 +2209,13 @@ to print-progress [string]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-320
-10
-757
-448
+278
+58
+741
+522
 -1
 -1
-13.0
+7.0
 1
 10
 1
@@ -1515,10 +2225,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-32
+32
+-32
+32
 0
 0
 1
@@ -1557,7 +2267,7 @@ NIL
 NIL
 NIL
 NIL
-1
+0
 
 BUTTON
 143
@@ -1574,7 +2284,7 @@ NIL
 NIL
 NIL
 NIL
-1
+0
 
 SWITCH
 10
@@ -1599,10 +2309,10 @@ rng-seed
 Number
 
 OUTPUT
-760
+745
 10
-1090
-445
+1075
+522
 10
 
 SWITCH
@@ -1741,14 +2451,14 @@ NIL
 
 SLIDER
 10
-341
+670
 274
-374
+703
 patch-bitstring-length
 patch-bitstring-length
 0
 100
-10.0
+1.0
 1
 1
 NIL
@@ -1756,14 +2466,14 @@ HORIZONTAL
 
 SLIDER
 10
-446
+775
 274
-479
+808
 break-even-threshold
 break-even-threshold
 0
 100
-20.0
+10.5
 0.1
 1
 NIL
@@ -1771,14 +2481,14 @@ HORIZONTAL
 
 SLIDER
 10
-376
+705
 274
-409
+738
 climate-bitstring-length
 climate-bitstring-length
 0
 100
-10.0
+19.0
 1
 1
 NIL
@@ -1786,14 +2496,14 @@ HORIZONTAL
 
 SLIDER
 10
-411
+740
 274
-444
+773
 economy-bitstring-length
 economy-bitstring-length
 0
 100
-20.0
+0.0
 1
 1
 NIL
@@ -1801,9 +2511,9 @@ HORIZONTAL
 
 SLIDER
 10
-482
+811
 274
-515
+844
 patch-price
 patch-price
 1
@@ -1816,9 +2526,9 @@ HORIZONTAL
 
 SLIDER
 10
-517
+846
 274
-550
+879
 neighbour-weight-adjust
 neighbour-weight-adjust
 0
@@ -1831,9 +2541,9 @@ HORIZONTAL
 
 SLIDER
 10
-552
+881
 274
-585
+914
 neighbour-noise-min
 neighbour-noise-min
 0
@@ -1846,9 +2556,9 @@ HORIZONTAL
 
 SLIDER
 10
-588
+917
 274
-621
+950
 neighbour-noise-max
 neighbour-noise-max
 0
@@ -1858,6 +2568,629 @@ neighbour-noise-max
 1
 NIL
 HORIZONTAL
+
+SLIDER
+10
+952
+274
+985
+p-economy-change
+p-economy-change
+0
+0.5
+0.0
+0.005
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+987
+274
+1020
+p-climate-change
+p-climate-change
+0
+0.5
+0.1
+0.005
+1
+NIL
+HORIZONTAL
+
+SWITCH
+10
+340
+151
+373
+use-climate-file?
+use-climate-file?
+1
+1
+-1000
+
+INPUTBOX
+10
+374
+274
+434
+climate-file
+NIL
+1
+0
+String
+
+BUTTON
+153
+340
+211
+373
+choose
+set climate-file user-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+213
+340
+274
+373
+new
+set climate-file user-new-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SWITCH
+10
+437
+162
+470
+use-economy-file?
+use-economy-file?
+1
+1
+-1000
+
+INPUTBOX
+10
+471
+274
+531
+economy-file
+NIL
+1
+0
+String
+
+BUTTON
+164
+437
+219
+470
+choose
+set economy-file user-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+219
+437
+274
+470
+new
+set economy-file user-new-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+439
+750
+578
+783
+n-land-use
+n-land-use
+1
+20
+6.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+276
+750
+437
+783
+p-lu-wild
+p-lu-wild
+0
+0.1
+0.0
+0.001
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+581
+750
+780
+795
+neighbourhood
+neighbourhood
+"Moore" "von Neumann" "Hexagonal"
+0
+
+CHOOSER
+278
+10
+463
+55
+visualize
+visualize
+"Land Uses" "Land Managers" "Sub-populations" "Biophysical Properties"
+0
+
+SLIDER
+466
+22
+741
+55
+biophysical-properties-bit-to-visualize
+biophysical-properties-bit-to-visualize
+0
+100
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+INPUTBOX
+276
+793
+378
+853
+subpop-name
+HRYI
+1
+0
+String
+
+INPUTBOX
+782
+774
+973
+834
+new-subpop-nbr-weight-dist
+1
+1
+0
+String
+
+INPUTBOX
+782
+836
+973
+896
+new-subpop-p-imitate-dist
+0.9375
+1
+0
+String
+
+INPUTBOX
+782
+898
+973
+958
+new-subpop-aspiration-dist
+11
+1
+0
+String
+
+INPUTBOX
+782
+960
+973
+1020
+new-subpop-memory-size-dist
+1
+1
+0
+String
+
+CHOOSER
+580
+834
+780
+879
+new-subpop-initial-strategy
+new-subpop-initial-strategy
+"Random" "Specialist" "Fickle"
+0
+
+CHOOSER
+580
+881
+780
+926
+new-subpop-satisfice-strategy
+new-subpop-satisfice-strategy
+"Null" "Habit" "Random" "Specialist" "Fickle" "BestMatch" "StableMatch" "WeightedMatch" "StableLast" "LastBest" "WeightedLast" "StableLastN" "LastNBest" "WeightedLastN"
+1
+
+CHOOSER
+580
+928
+780
+973
+new-subpop-imitative-strategy
+new-subpop-imitative-strategy
+"Null" "MajorityBest" "WeightedMajority" "PhysicalMajorityBest" "PhysicalWeightedMajority" "CopyLastBest" "CopyWeightedLast" "CopyBestMatch" "CopyWeightedMatch" "CopyOther" "SmartCopyBest" "StableSmartCopy" "WeightedSmartCopy" "WeightedYieldCopy" "MatchWeightedYieldCopy" "MeanWeightedYieldCopy" "WeightedYieldTCopy" "MeanWeightedYieldTCopy" "MeanYieldTBestCopy" "YieldTBestCopy"
+13
+
+CHOOSER
+580
+975
+780
+1020
+new-subpop-experiment-strategy
+new-subpop-experiment-strategy
+"Null" "Random" "Fickle" "BestMatch" "StableMatch" "WeightedMatch" "StableLast" "LastBest" "WeightedLast" "StableLastN" "LastNBest" "WeightedLastN" "CopyOther"
+1
+
+SLIDER
+580
+798
+711
+831
+new-subpop-p
+new-subpop-p
+0
+1
+0.5
+0.01
+1
+NIL
+HORIZONTAL
+
+INPUTBOX
+276
+855
+578
+1020
+subpop-str
+[[0.5 \"RS\" \"1\" \"0\" \"21\" \"1\" \"Random\" \"Null\" \"Null\" \"Random\"]\n[0.5 \"HRYI\" \"1\" \"0.9375\" \"11\" \"1\" \"Random\" \"Habit\" \"WeightedYieldCopy\" \"Random\"]]
+1
+1
+String
+
+BUTTON
+379
+785
+455
+818
+Add Subpop
+add-subpop-str
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+379
+820
+488
+853
+Add Last Subpop
+add-subpop-str-last
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+456
+785
+578
+818
+Remove Subpop
+del-subpop-str
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+489
+820
+578
+853
+Clear Subpops
+set subpop-str \"[]\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+INPUTBOX
+10
+568
+274
+628
+subpop-file
+NIL
+1
+0
+String
+
+BUTTON
+10
+630
+144
+663
+Save Subpops
+save-subpops subpop-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+146
+630
+274
+663
+Load Subpops
+read-subpops subpop-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SWITCH
+10
+534
+154
+567
+use-subpop-file?
+use-subpop-file?
+1
+1
+-1000
+
+BUTTON
+156
+534
+211
+567
+choose
+set subpop-file user-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+213
+534
+274
+567
+new
+set subpop-file user-new-file
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+279
+525
+652
+745
+Land Uses
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"ask land-uses [\n  create-temporary-plot-pen (word \"LU\" who)\n  set-plot-pen-color color\n]" "ask land-uses [\n  set-current-plot-pen (word \"LU\" who)\n  plot count patches with [use = myself]\n]"
+PENS
+
+PLOT
+655
+525
+1075
+740
+Sub-populations
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"ask sub-populations [\n  create-temporary-plot-pen name\n  set-plot-pen-color color\n]" "ask sub-populations [\n  set-current-plot-pen name\n  plot sum [length parcels-list] of land-managers with [sub-pop = myself]\n]"
+PENS
+
+BUTTON
+714
+798
+780
+831
+=P(sp)
+equalize-subpop-str-p
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+782
+740
+974
+773
+n-clump-swaps
+n-clump-swaps
+0
+20000
+0.0
+100
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+975
+741
+1075
+786
+imit-2001-env
+imit-2001-env
+1 2 3
+0
+
+CHOOSER
+975
+824
+1075
+869
+imit-2001-sp
+imit-2001-sp
+"RS" "OS" "OD" "LS" "LD" "SI" "YI" "HYI" "HRYI" "II"
+8
+
+BUTTON
+975
+788
+1075
+821
+Set 2001 Env
+set-env-param-imitation imit-2001-env
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+975
+871
+1075
+904
+Add 2001 SP
+add-subpop-imitation imit-2001-sp
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+208
+16
+274
+49
+go200
+repeat 200 [\n  go\n]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
