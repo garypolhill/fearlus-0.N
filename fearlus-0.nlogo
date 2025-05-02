@@ -173,7 +173,7 @@ to setup
   ]
   random-seed rng-seed
 
-;  carefully [
+  carefully [
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Model-specific code to implement the setup
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -234,11 +234,11 @@ to setup
     if use-go-seed? [
       random-seed go-seed
     ]
-;  ] [
-;    reset-ticks
+  ] [
+    reset-ticks
     ; Set the error? condition
-;    output-error error-message
-;  ]
+    output-error error-message
+  ]
 
   reset-ticks
 end
@@ -292,7 +292,7 @@ to go
     stop
   ]
 
-;  carefully [
+  carefully [
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Model-specific code to implement time step here
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -335,11 +335,11 @@ to go
     ]
 
     visualization
-;  ] [
-;    tick
+  ] [
+    tick
     ; Set the error? condition
-;    output-error error-message
-;  ]
+    output-error error-message
+  ]
   tick
 end
 
@@ -2310,7 +2310,7 @@ INPUTBOX
 141
 146
 rng-seed
-2.10835479E9
+-4.01351177E8
 1
 0
 Number
@@ -2766,7 +2766,7 @@ CHOOSER
 visualize
 visualize
 "Land Uses" "Land Managers" "Sub-populations" "Biophysical Properties"
-1
+0
 
 SLIDER
 466
