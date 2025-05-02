@@ -301,6 +301,9 @@ to go
     ask sub-populations [
       reset-removals
     ]
+    ask patches [
+      update-land-manager
+    ]
     ask land-managers [
       allocate-land-uses
     ]
@@ -825,6 +828,7 @@ to initialize-land-allocator
   ]
   ask patches [
     set owner [random-land-manager] of the-land-allocator
+    set next-owner owner
     ask owner [
       set parcels-list lput myself parcels-list
     ]
@@ -1135,6 +1139,7 @@ to-report spawn-land-manager
   let lm nobody
   hatch-land-managers 1 [
     set sub-pop myself
+    set color (10 * random 12) + (2 + random 7)
 
     set nbr-weight sample [nbr-weight-dist] of sub-pop
     set p-imitate sample [p-imitate-dist] of sub-pop
@@ -1575,14 +1580,14 @@ to-report intelligent-copying-algorithm [lp lm best? order?]
     foreach parcels-list [ parcel ->
       let lu [use] of parcel
       if not table:has-key? lu-table ([who] of lu) [
-        table:put lu-table ([who] of lu) ([expected-yield parcel] of lu)
+        table:put lu-table ([who] of lu) ([expected-yield parcel] of lp)
       ]
     ]
     ask social-neighbours [
       foreach parcels-list [ parcel ->
         let lu [use] of parcel
         if not table:has-key? lu-table ([who] of lu) [
-          table:put lu-table ([who] of lu) ([expected-yield parcel] of lu) * nbr-weight
+          table:put lu-table ([who] of lu) ([expected-yield parcel] of lp) * nbr-weight
         ]
       ]
     ]
@@ -1723,9 +1728,11 @@ to-report expected-yield [ other-lp ]
   let lubits patch-bitstring-length + climate-bitstring-length + economy-bitstring-length
   let eyield 0
   let denom combinations lubits yield
-  foreach n-values (1 + int yield) [i -> i] [ i ->
+  foreach range (1 + int yield) [ i ->
+
     set eyield eyield + ((yield + anti-match - (2 * i)) * (combinations anti-match i)
       * (combinations (lubits - anti-match) (yield - i)) / denom)
+
   ]
   report eyield
 end
@@ -2293,7 +2300,7 @@ SWITCH
 84
 random-seed?
 random-seed?
-1
+0
 1
 -1000
 
@@ -2303,7 +2310,7 @@ INPUTBOX
 141
 146
 rng-seed
-0.0
+2.10835479E9
 1
 0
 Number
@@ -2458,7 +2465,7 @@ patch-bitstring-length
 patch-bitstring-length
 0
 100
-1.0
+10.0
 1
 1
 NIL
@@ -2488,7 +2495,7 @@ climate-bitstring-length
 climate-bitstring-length
 0
 100
-19.0
+10.0
 1
 1
 NIL
@@ -2752,14 +2759,14 @@ neighbourhood
 0
 
 CHOOSER
-278
+334
 10
-463
+464
 55
 visualize
 visualize
 "Land Uses" "Land Managers" "Sub-populations" "Biophysical Properties"
-0
+1
 
 SLIDER
 466
@@ -2782,7 +2789,7 @@ INPUTBOX
 378
 853
 subpop-name
-HRYI
+II
 1
 0
 String
@@ -2804,7 +2811,7 @@ INPUTBOX
 973
 896
 new-subpop-p-imitate-dist
-0.9375
+1
 1
 0
 String
@@ -2815,7 +2822,7 @@ INPUTBOX
 973
 958
 new-subpop-aspiration-dist
-11
+21
 1
 0
 String
@@ -2849,7 +2856,7 @@ CHOOSER
 new-subpop-satisfice-strategy
 new-subpop-satisfice-strategy
 "Null" "Habit" "Random" "Specialist" "Fickle" "BestMatch" "StableMatch" "WeightedMatch" "StableLast" "LastBest" "WeightedLast" "StableLastN" "LastNBest" "WeightedLastN"
-1
+0
 
 CHOOSER
 580
@@ -2859,7 +2866,7 @@ CHOOSER
 new-subpop-imitative-strategy
 new-subpop-imitative-strategy
 "Null" "MajorityBest" "WeightedMajority" "PhysicalMajorityBest" "PhysicalWeightedMajority" "CopyLastBest" "CopyWeightedLast" "CopyBestMatch" "CopyWeightedMatch" "CopyOther" "SmartCopyBest" "StableSmartCopy" "WeightedSmartCopy" "WeightedYieldCopy" "MatchWeightedYieldCopy" "MeanWeightedYieldCopy" "WeightedYieldTCopy" "MeanWeightedYieldTCopy" "MeanYieldTBestCopy" "YieldTBestCopy"
-13
+10
 
 CHOOSER
 580
@@ -2869,7 +2876,7 @@ CHOOSER
 new-subpop-experiment-strategy
 new-subpop-experiment-strategy
 "Null" "Random" "Fickle" "BestMatch" "StableMatch" "WeightedMatch" "StableLast" "LastBest" "WeightedLast" "StableLastN" "LastNBest" "WeightedLastN" "CopyOther"
-1
+0
 
 SLIDER
 580
@@ -2892,7 +2899,7 @@ INPUTBOX
 578
 1020
 subpop-str
-[[0.5 \"RS\" \"1\" \"0\" \"21\" \"1\" \"Random\" \"Null\" \"Null\" \"Random\"]\n[0.5 \"HRYI\" \"1\" \"0.9375\" \"11\" \"1\" \"Random\" \"Habit\" \"WeightedYieldCopy\" \"Random\"]]
+[[0.5 \"HRYI\" \"1\" \"0.9375\" \"11\" \"1\" \"Random\" \"Habit\" \"WeightedYieldCopy\" \"Random\"]\n[0.5 \"II\" \"1\" \"1\" \"21\" \"1\" \"Random\" \"Null\" \"SmartCopyBest\" \"Null\"]]
 1
 1
 String
@@ -3129,7 +3136,7 @@ CHOOSER
 imit-2001-env
 imit-2001-env
 1 2 3
-0
+1
 
 CHOOSER
 975
@@ -3139,7 +3146,7 @@ CHOOSER
 imit-2001-sp
 imit-2001-sp
 "RS" "OS" "OD" "LS" "LD" "SI" "YI" "HYI" "HRYI" "II"
-8
+9
 
 BUTTON
 975
@@ -3180,8 +3187,8 @@ BUTTON
 16
 274
 49
-go200
-repeat 200 [\n  go\n]
+go201
+repeat 201 [\n  go\n]
 NIL
 1
 T
@@ -3191,6 +3198,23 @@ NIL
 NIL
 NIL
 0
+
+BUTTON
+277
+16
+332
+49
+viz
+visualization
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
