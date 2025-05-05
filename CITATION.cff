@@ -8,8 +8,8 @@ authors:
     given-names: Nick
     orcid: https://orcid.org/0000-0002-6945-150X
 title: NetLogo reimplementation of FEARLUS-0
-version: 1.0
+version: 1.0.1
 identifiers:
   - type: doi
-    value: TBD
+    value: 10.5281/zenodo.15344750
 date-released: 2025-05-05
