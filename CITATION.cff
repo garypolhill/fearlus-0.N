@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Polhill
+    given-names: Gary
+    orcid: https://orcid.org/0000-0002-8596-0590
+  - family-names: Gotts
+    given-names: Nick
+    orcid: https://orcid.org/0000-0002-6945-150X
+title: NetLogo reimplementation of FEARLUS-0
+version: 1.0
+identifiers:
+  - type: doi
+    value: TBD
+date-released: 2025-05-05
