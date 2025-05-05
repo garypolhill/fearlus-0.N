@@ -1,0 +1,30 @@
+digraph position {
+  node [fontname = "Helvetica", fontsize = "14", shape = "Mrecord"];
+  edge [fontname = "Helvetica", fontisze = "12", shape = "normal"];
+
+  start [label = "", shape = "circle", width = "0.25", height = "0.25", style = "filled", fillcolor = "black"];
+  finish [label = "", shape = "circle", width = "0.25", height = "0.25", peripheries = 2, style = "filled", fillcolor = "black"];
+  done [label = "", shape = "diamond", width = "0.25", height = "0.25"];
+
+  
+  choose [label = "All agents make a decision", style = "filled", fillcolor = "grey"];
+
+  start -> choose;
+
+  factor [label = "Unknowable factors influencing the\noutcome of the decision are computed"];
+
+  choose -> factor;
+
+  yield [label = "Consequences of the\ndecision are computed"];
+
+  factor -> yield;
+
+  adjust [label = "Agent population and\ndecision-making adjusted"];
+
+  yield -> adjust;
+
+  adjust -> done;
+
+  done -> choose [label = "[Simulation not finished]"];
+  done -> finish [label = "[Simulation finished]"];
+}

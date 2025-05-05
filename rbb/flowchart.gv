@@ -1,0 +1,29 @@
+digraph flowchart {
+  node [fontname = "Helvetica", fontsize = "14", shape = "Mrecord"];
+  edge [fontname = "Helvetica", fontisze = "12", shape = "normal"];
+
+  start [label = "", shape = "circle", width = "0.25", height = "0.25", style = "filled", fillcolor = "black"];
+  finish [label = "", shape = "circle", width = "0.25", height = "0.25", peripheries = 2, style = "filled", fillcolor = "black"];
+  happy [label = "", shape = "diamond", width = "0.25", height = "0.25"];
+  copy [label = "", shape = "diamond", width = "0.25", height = "0.25"];
+
+  start -> happy;
+  
+  habit [label = "Repeat what was previously done"];
+
+  happy -> habit [label = "[yield >= aspiration]"];
+
+  happy -> copy [label = "[else]"];
+
+  imitate [label = "Copy a neighbour"];
+
+  experiment [label = "Try a random option"];
+
+  copy -> imitate [label = "[random-float 1 < p-imitate]"];
+
+  copy -> experiment [label = "[else]"];
+
+  habit -> finish;
+  imitate -> finish;
+  experiment -> finish;
+}

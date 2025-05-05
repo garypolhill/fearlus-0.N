@@ -1,5 +1,5 @@
-; <one line to give the program's name and a brief idea of what it does.>
-; Copyright (C) <year>  <name of author>
+; FEARLUS-0 -- a conceptual model of land use decision-making
+; Copyright (C) 2025  The James Hutton Institute
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 ;2345678901234567890123456789012345678901234567890123456789012345678901234567890
 ;        1         2         3         4         5         6         7         8
+
 
 extensions [ table csv bitstring ]
 
@@ -122,6 +123,12 @@ patches-own [
   n-mgr-change
 ]
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; unit-test
+;
+; TO-DO!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to unit-test
   clear-all
 
@@ -144,9 +151,11 @@ to unit-test
 end
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; {observer} setup
 ;
 ; Set up the model
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to setup
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -243,6 +252,13 @@ to setup
   reset-ticks
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} visualization
+;
+; Provide a spatial visualization of the model according to the user's required
+; settings
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to visualization
   ask patches [
     (ifelse visualize = "Land Uses" [
@@ -279,9 +295,11 @@ to visualization
   ]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; {observer} go
 ;
 ; Perform one timestep of the model
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to go
   ; Check the error? condition
@@ -347,7 +365,12 @@ end
 ; Initialization Schedule
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} initialize-patches
+;
+; Set the initial biophysical-properties of the patches to random bitstrings and
+; initialize other attributes.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to initialize-patches
   ask patches [
@@ -361,7 +384,12 @@ to initialize-patches
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} connect-patches
+;
+; Initialize the neighbourhood of the patches using the user's preferred
+; neighbourhood function.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to connect-patches
   ask patches [
@@ -393,7 +421,11 @@ to connect-patches
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} read-patches
+;
+; Read the patches' biophysical-properties bitstrings from a CSV file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to read-patches [ file-name ]
   let patch-list csv:from-file file-name
@@ -425,7 +457,13 @@ to read-patches [ file-name ]
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} clump-patches
+;
+; For each bit in the biophysical-properties bitstrings, implement a round of no
+; more than n-clump-swaps bit swaps between pairs of patches where such a swap
+; would lead to greater similarity of bitstrings between neighbours.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to clump-patches
   foreach range patch-bitstring-length [ i ->
@@ -491,6 +529,13 @@ to clump-patches
   ]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patch} edge-match-count
+;
+; Return the number of edge-neighbours (neighbors4) in which this patch has the
+; same setting of bit i as the neighbour. (Used during clumping)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report edge-match-count [ i ]
   let n 0
   let bit bitstring:get? biophysical-properties i
@@ -501,6 +546,13 @@ to-report edge-match-count [ i ]
   ]
   report n
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patch} corner-match-count
+;
+; Return the number of corner-neighbours (neighbors - neighbors4) in which this
+; patch has the same setting of bit i as the neighbour. (Used during clumping)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report corner-match-count [ i ]
   let n 0
@@ -514,7 +566,11 @@ to-report corner-match-count [ i ]
   report n
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} save-patches
+;
+; Save the biophysical-properties of each patch to a CSV file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to save-patches [ file-name ]
   let patch-list [["x" "y" "biophysical-properties"]]
@@ -526,7 +582,11 @@ to save-patches [ file-name ]
   csv:to-file file-name patch-list
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} initialize-sub-populations
+;
+; Create the sub-populations -- using a file or the subpop-str parameter
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to initialize-sub-populations
   if use-subpop-file? and file-exists? subpop-file [
@@ -596,6 +656,13 @@ to initialize-sub-populations
   ]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} add-subpop-str
+;
+; This is called from the Interface tab when the user wants to create a
+; sub-population using parameters
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to add-subpop-str
   let subpop-list get-subpop-list
 
@@ -611,6 +678,10 @@ to add-subpop-str
   ]
   if p-total + new-subpop-p > 1 [
     user-message (word "Sub-population probabilities must sum to 1\nUse Add Last Subpop")
+    stop
+  ]
+  if new-subpop-p < 0 [
+    user-message (word "Sub-population probability must be non-negative")
     stop
   ]
 
@@ -630,6 +701,14 @@ to add-subpop-str
   update-subpop-str subpop-list
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} add-subpop-str-last
+;
+; Called from the Interface tab when the user wants to add the final config-
+; uration of a sub-population and automatically calculate its probability so
+; that all sub-population probabilities sum to 1.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to add-subpop-str-last
   let subpop-list get-subpop-list
 
@@ -643,11 +722,25 @@ to add-subpop-str-last
   add-subpop-str
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} del-subpop-str
+;
+; Called from the Interface tab when the user wants to remove a sub-population
+; configuration from subpop-str
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to del-subpop-str
   let subpop-list get-subpop-list
   set subpop-list filter [ sp -> subpop-name != item 1 sp ] subpop-list
   update-subpop-str subpop-list
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} equalize-subpop-str-p
+;
+; Called from the Interface tab when the user wants all sub-populations to have
+; the same probability -- pressing the '=P(sp)' button
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to equalize-subpop-str-p
   let subpop-list get-subpop-list
@@ -662,12 +755,26 @@ to equalize-subpop-str-p
   update-subpop-str subpop-list
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; get-subpop-list
+;
+; Turn the sub-popstr into a NetLogo list
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report get-subpop-list
   if length subpop-str = 0 or first subpop-str != "[" [
     set subpop-str "[]"
   ]
   report read-from-string subpop-str
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; update-subpop-str
+;
+; Turn a list of sub-population configuration parameters into a string and
+; set subpop-str to that string. This is done 'nicely' so that there is an
+; 'end-of-line' separator between pairs of sub-population configurations.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-subpop-str [ subpop-list ]
   ifelse length subpop-list = 0 [
@@ -677,10 +784,26 @@ to update-subpop-str [ subpop-list ]
   ]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; format-subpop-list
+;
+; Called from update-subpop-str, this reporter builds a string for a single
+; sub-population configuration, ensuring that string values in the configuration
+; are surrounded by quotes. Note that since the only numerical configuration is
+; the new-subpop-p, the list is designed to have that number first, and then put
+; quotes around everything else.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report format-subpop-list [ subpop-list ]
   let qstr reduce [[so-far next] -> (word so-far " \"" next "\"")] subpop-list
   report (word "[" qstr "]")
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} save-subpops
+;
+; Save the sub-population configuration string to a CSV-formatted file.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to save-subpops [ file-name ]
   if length subpop-str = 0 or first subpop-str != "[" [
@@ -693,10 +816,23 @@ to save-subpops [ file-name ]
   csv:to-file file-name subpop-list
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; subpop-file-headings
+;
+; Return a list of headings for the sub-population configuration CSV file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report subpop-file-headings
   report ["P" "name" "nbr-weight-dist" "aspiration-dist" "memory-size-dist"
     "initial-strategy" "satisfice-strategy" "imitative-strategy" "experiment-strategy"]
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} read-subpops
+;
+; Read the sub-population configuration string from a CSV-formatted file.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 to read-subpops [ file-name ]
   let subpop-read csv:from-file file-name
@@ -724,7 +860,11 @@ to read-subpops [ file-name ]
   update-subpop-str subpop-list
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} initialize-land-uses
+;
+; Create some random land-uses.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to initialize-land-uses
   let colours lu-colour-list
@@ -739,7 +879,11 @@ to initialize-land-uses
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} read-land-uses
+;
+; Create some land uses from a CSV-formatted land use file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to read-land-uses [ file-name ]
   ask land-uses [
@@ -785,7 +929,13 @@ to read-land-uses [ file-name ]
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} read-bitstrings
+;
+; Read some bitstrings from a file -- this is used to read the climate and
+; economy bitstrings. The file is just expected to have one line per tick, with
+; the required bitstring on each line
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report read-bitstrings [file-name expected-size]
   if not file-exists? file-name [
@@ -807,7 +957,11 @@ to-report read-bitstrings [file-name expected-size]
   report bitstring-list
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} save-land-uses
+;
+; Save the land-uses to a CSV formatted file so they can be reused
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to save-land-uses [ file-name ]
   let lu-list [["match" "wild-card" "colour"]]
@@ -817,7 +971,12 @@ to save-land-uses [ file-name ]
   csv:to-file file-name lu-list
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} initialize-land-allocator
+;
+; Create the land-allocator agent, and assign each patch a randomly created
+; land-manager
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to initialize-land-allocator
   create-land-allocators 1 [
@@ -835,7 +994,12 @@ to initialize-land-allocator
   ]
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} allocate-initial-land-uses
+;
+; Use the initial-strategy of the land-manager to set the initial land-use on
+; each assigned patch.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to allocate-initial-land-uses
   foreach parcels-list [ parcel ->
@@ -850,20 +1014,35 @@ end
 ; Model Schedule
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} new-year
+;
+; Print a message showing that a new 'year' has started. There is one year per
+; tick. This procedure isn't really necessary.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to new-year
   output-print "------------------------------------------------------------------------------"
   output-print (word "New year: " ticks)
 end
 
-; sub-populations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {sub-populations} reset-removals
+;
+; Reset the counter of number of land-managers from this sub-population that
+; have been removed
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to reset-removals
   set n-removals 0
 end
 
-; patches
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patches} update-land-manager
+;
+; Update the owner from the next-owner attribute, keeping track of the number
+; of changes of owner
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-land-manager
   ifelse owner != next-owner [
@@ -875,7 +1054,11 @@ to update-land-manager
   set owner next-owner
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} allocate-land-uses
+;
+; Land use decision-making algorithm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to allocate-land-uses
   foreach parcels-list [ parcel ->
@@ -899,7 +1082,12 @@ to allocate-land-uses
   ]
 end
 
-; patches
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patches} update-land-use
+;
+; Update the use from the next-use attribute, keeping track of the number of
+; changes of use
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-land-use
   if next-use != use [
@@ -909,7 +1097,11 @@ to update-land-use
   set use next-use
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} determine-climate
+;
+; Update the climate bitstring
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to determine-climate
   ifelse use-climate-file? and length climate-t > 0 [
@@ -925,7 +1117,11 @@ to determine-climate
   ]
 end
 
-; global
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {observer} determine-economy
+;
+; Update the economy bitstring
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to determine-economy
   ifelse use-economy-file? and length economy-t > 0 [
@@ -941,14 +1137,22 @@ to determine-economy
   ]
 end
 
-; patches
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patches} calculate-yield
+;
+; Calculate the yield from the land-use chosen on this patch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to calculate-yield
   set prev-yields lput yield prev-yields
-  set yield [ match-result biophysical-properties ] of use
+  set yield [ match-result [biophysical-properties] of myself ] of use
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} harvest
+;
+; Update the wealth and the climate-memory and economy-memory
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to harvest
   foreach parcels-list [ parcel ->
@@ -964,10 +1168,16 @@ to harvest
   ]
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} sell-land
+;
+; Sell land at the patch-price until the wealth is non-negative or there are
+; no patches left to sell
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to sell-land
   set some-parcels-lost? false
+  set parcels-gained 0
   while [ wealth < 0 and length parcels-list > 0 ] [
     let parcel first parcels-list
     ask the-land-allocator [
@@ -976,11 +1186,19 @@ to sell-land
     set parcels-list but-first parcels-list
     set wealth wealth + patch-price
     set some-parcels-lost? true
+    set parcels-gained parcels-gained - 1
   ]
   set all-parcels-lost? (length parcels-list = 0)
 end
 
-; land-allocator
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-allocator} transfer-land
+;
+; Find a new owner for each patch put up for sale by a land-manager. The new
+; owner is either a neighbour who can afford the patch-price or a random in-
+; migrant land-manager. There is an equal probability of each land-manager
+; being chosen.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to transfer-land
   ask land-managers [
@@ -1000,6 +1218,7 @@ to transfer-land
       set parcels-list lput parcel parcels-list
       if member? self mgrs [
         set parcels-gained parcels-gained + 1
+        set wealth wealth - patch-price
       ]
     ]
     ask parcel [
@@ -1008,13 +1227,21 @@ to transfer-land
   ]
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} increase-age
+;
+; Add 1 to the age
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to increase-age
   set age age + 1
 end
 
-; land-allocator
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-allocator} retire-managers
+;
+; Land-managers with no land parcels left die
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to retire-managers
   let credit-change 0
@@ -1028,7 +1255,11 @@ to retire-managers
   set credit credit + credit-change
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} update-strategy
+;
+; Adjust the nbr-weight
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-strategy
   set nbr-weight nbr-weight - (parcels-gained * neighbour-weight-adjust)
@@ -1037,7 +1268,11 @@ to update-strategy
   ]
 end
 
-; strategy
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {strategy} choose-land-use
+;
+; Use the algorithm of the strategy to set the next-use of a parcel
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to choose-land-use [ parcel mgr ]
   let lu (runresult algorithm parcel mgr)
@@ -1046,7 +1281,11 @@ to choose-land-use [ parcel mgr ]
   ]
 end
 
-; land-parcels
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-parcels} last-yield
+;
+; Return the previous-year's yield
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report last-yield
   if not is-list? prev-yields or length prev-yields = 0 [
@@ -1055,23 +1294,48 @@ to-report last-yield
   report last prev-yields
 end
 
-; land-uses
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-uses} match-result
+;
+; Return the match between the biophysical-properties and current climate and
+; economy (used when calculating yield)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report match-result [ biophys ]
   report parcel-climate-economy-match-result biophys climate economy
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-uses} parcel-match-result
+;
+; Used by some strategies, this returns the match between the land use and the
+; biophysical properties _only_; ignoring the climate and economy
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report parcel-match-result [ biophys ]
   let parcel-bits bitstring:sub match 0 patch-bitstring-length
   report bitstring:count1 (wild-card bitstring:or (parcel-bits bitstring:parity biophys))
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-uses} parcel-climate-economy-match-result
+;
+; Return the match between this land use and specified biophysical-properties,
+; climate and economy
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report parcel-climate-economy-match-result [ biophys clim econ ]
   let bio-clim-econ bitstring:cat biophys (bitstring:cat clim econ)
   report bitstring:count1 (wild-card bitstring:or (match bitstring:parity bio-clim-econ))
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} eligible-for-parcels?
+;
+; Used by the land-allocator when transferring land, returns whether the
+; land-manager has enough wealth to afford the patch-price, while checking
+; that a known error condition due to floating-point errors has not occurred
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report eligible-for-parcels?
   ifelse wealth >= patch-price [
@@ -1086,7 +1350,11 @@ to-report eligible-for-parcels?
   ]
 end
 
-; land-parcels
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patches} manager-neighbours
+;
+; Report the set of land-managers owning a patch neighbouring this one
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report manager-neighbours
   let nbrs (turtle-set nobody)
@@ -1096,7 +1364,12 @@ to-report manager-neighbours
   report nbrs
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} social-neighbours
+;
+; Report the set of land-managers owing a patch neighbouring any member of the
+; parcels-list
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report social-neighbours
   let nbrs (turtle-set nobody)
@@ -1111,7 +1384,11 @@ to-report social-neighbours
   report nbrs
 end
 
-; land-managers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-managers} parcel-neighbours
+;
+; Report the set of patches neighbouring a patch owned by this land-manager
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report parcel-neighbours
   let nbrs (turtle-set nobody)
@@ -1126,14 +1403,22 @@ to-report parcel-neighbours
   report nbrs
 end
 
-; land-allocator
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-allocator} random-land-manager
+;
+; Report a land-manager created from a randomly chosen sub-population
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report random-land-manager
   let sp weighted-choice sub-populations [ -> p-subpop ]
   report [spawn-land-manager] of sp
 end
 
-; sub-population
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {sub-population} spawn-land-manager
+;
+; Create and initialize a new land-manager belonging to this sub-population
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report spawn-land-manager
   let lm nobody
@@ -1168,9 +1453,12 @@ to-report spawn-land-manager
   report lm
 end
 
-; land-manager
-; CautiousImitativeOptimumStrategy not implemented
-; Cautious uses expected variance as the score rather than expected mean -- not in any paper
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {land-manager} parse-strategy
+;
+; Parse a strategy string into a strategy agent, checking it is suitable for the
+; required context.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report parse-strategy [ strat-str is-hist? is-imit? ]
   let s nobody
@@ -1278,6 +1566,21 @@ end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Strategies
+;
+; The ensuing procedures configure and implement strategy agents; they are not
+; individually commented. The general approach is to have a procedure named
+; X-strategy, which calls get-strategy(), and an accompanying procedure
+; X-algorithm, which implements the strategy. X-strategy is called in a
+; land-manager context when assigning one of the land-manager's strategies.
+; X-algorithm is called in a strategy context when choosing a land use, and
+; it always passes the patch ('lp') for which the decision is being made and
+; the land-manager ('lm') making the decision.
+;
+; In some cases, the algorithms for two or more strategies are so similar that
+; it makes sense to have further arguments to the X-algorithm procedure that
+; implement slight variations on the algorithm. These arguments are passed in
+; the anonymous procedure call provided as the argument to the alg argument of
+; get-strategy by the X-strategy procedures.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report get-strategy [ a-name is-hist? is-imit? alg ]
@@ -1296,6 +1599,15 @@ to-report get-strategy [ a-name is-hist? is-imit? alg ]
   report s
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Null
+;
+; This throws an error when called, and allows rigorous verification of those
+; sub-populations that do not use one or more of an imitative-strategy,
+; experiment-strategy or satisfice-strategy due to the configuration of
+; aspiration and p-imitative
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report no-strategy
   report get-strategy "none" 0 0 [ [lp lm] -> no-algorithm lp lm ]
 end
@@ -1303,6 +1615,12 @@ end
 to-report no-algorithm [ lp lm ]
   output-error "Null strategy asked for a land use!"
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Habit
+;
+; Just retains the same land use on the patch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report habit-strategy
   report get-strategy "habit" true false [ [lp lm] -> habit-algorithm lp lm ]
@@ -1312,6 +1630,12 @@ to-report habit-algorithm [ lp lm ]
   report [ use ] of lp
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Random
+;
+; Choose a random land use for the patch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report random-strategy
   report get-strategy "random" false false [ [lp lm] -> random-algorithm lp lm ]
 end
@@ -1319,6 +1643,15 @@ end
 to-report random-algorithm [ lp lm ]
   report one-of land-uses
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Specialist
+;
+; Choose a random land use the first time, and then choose that land use every
+; other time. Note that _every_ land manager using this strategy will choose
+; the same land use, which is not quite the same as the version in the ObjC
+; version of FEARLUS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report eccentric-specialist-strategy
   report get-strategy "eccentric-specialist" false false [ [lp lm] -> eccentric-specialist-algorithm lp lm ]
@@ -1331,6 +1664,15 @@ to-report eccentric-specialist-algorithm [ lp lm ]
   report last data
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Fickle
+;
+; Choose a random land use the first time each tick, and then choose that land
+; use for any further decisions that tick. Note that _every_ land manager using
+; this strategy will choose the same land use each tick, which is not the same
+; as the way things were done in ObjC-Swarm FEARLUS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report fickle-strategy
   report get-strategy "fickle" false false [ [lp lm] -> fickle-algorithm lp lm ]
 end
@@ -1341,6 +1683,15 @@ to-report fickle-algorithm [ lp lm ]
   ]
   report last data
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Match
+;
+; Choose a land use according to how suitable it is for the biophysical-properties
+; of the patch. This can be done: optimally -- choosing either a random one-of
+; those with equal best match or deterministically among those with equal best
+; match; or probabilistically -- weighted by the degree of match
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report match-weighted-optimum-strategy
   report get-strategy "match-best" false false [ [lp lm] -> match-weighted-algorithm lp lm true false true ]
@@ -1371,6 +1722,13 @@ to-report match-weighted-algorithm [ lp lm best? order? wild1s? ]
   ] [weighted-choice-lists lu-list scores]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Last Year's
+;
+; Choose the land use that would have been best last year for the patch. As per
+; Match, can be done deterministically or randomly optimally, or weighted.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report last-years-optimum-strategy
   report get-strategy "last-order" true false [ [lp lm] -> last-years-algorithm lp lm true true ]
 end
@@ -1394,6 +1752,13 @@ to-report last-years-algorithm [ lp lm best? order? ]
     [deterministic-best-choice-lists lu-list scores] [best-choice-lists lu-list scores]
   ] [weighted-choice-lists lu-list scores]
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Last N Year's
+;
+; Like 'Last Year's', but looking back over the memory of previous climates and
+; economies...
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report last-n-years-optimum-strategy
   report get-strategy "last-n-order" true false [ [lp lm] -> last-n-years-algorithm lp lm true true ]
@@ -1427,6 +1792,13 @@ to-report last-n-years-algorithm [ lp lm best? order? ]
   ] [weighted-choice-lists lu-list scores]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Majority
+;
+; Choose a land use based on how often it appears in the social neighbourhood of
+; the land-manager, either the most often, or weighted by frequency
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report majority-copying-strategy
   report get-strategy "majority-best" true true [ [lp lm] -> majority-copying-algorithm lp lm true]
 end
@@ -1453,6 +1825,12 @@ to-report majority-copying-algorithm [ lp lm best? ]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; PhysicalMajority
+;
+; As per Majority, but just look at patches neighbouring the land-managers own
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report physical-majority-copying-strategy
   report get-strategy "physical-majority-best" true true [ [lp lm] -> physical-majority-copying-algorithm lp lm true ]
 end
@@ -1476,6 +1854,13 @@ to-report physical-majority-copying-algorithm [ lp lm best? ]
   ]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Last Year's Copying
+;
+; As per Last Year's, but it can only look at land uses used by self or
+; neighbours
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report last-years-best-copying-strategy
   report get-strategy "last-best-copy" true true [ [lp lm] -> last-years-copying-algorithm lp lm true ]
@@ -1508,6 +1893,12 @@ to-report last-years-copying-algorithm [ lp lm best? ]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Match Copying
+;
+; As per Match, but it can only look at land uses used by self or neighbours
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report match-best-copying-strategy
   report get-strategy "match-best-copy" true true [ [lp lm] -> match-copying-algorithm lp lm true ]
 end
@@ -1539,6 +1930,14 @@ to-report match-copying-algorithm [ lp lm best? ]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Other Copying
+;
+; Choose randomly among land uses used by self or neighbours that are _not_
+; applied to the current patch. If there are no such land uses, then don't
+; change
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report other-copying-strategy
   report get-strategy "other-copying" true true [ [lp lm] -> other-copying-algorithm lp lm ]
 end
@@ -1560,6 +1959,17 @@ to-report other-copying-algorithm [ lp lm ]
     report land-use (weighted-choice-table lu-table)
   ]
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Smart Copying
+;
+; This algorithm gives land managers working knowledge of the bitstring basis
+; for yield, and allows them to estimate the yield they would get on their
+; patch based on the yields other managers got for land uses on other patches.
+; Choices can be made among the optimum -- deterministically or randomly among
+; those with equal optimum expected yield -- or probabilistically weighted by
+; yield
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report intelligent-best-copying-strategy
   report get-strategy "smart-best-copy" true true [ [lp lm] -> intelligent-copying-algorithm lp lm true false ]
@@ -1596,6 +2006,13 @@ to-report intelligent-copying-algorithm [lp lm best? order?]
     [deterministic-best-choice-table lu-table] [best-choice-table lu-table]
   ] [weighted-choice-table lu-table])
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Yield Copying
+;
+; Copy land uses weighted by yields -- either as a sum, a mean, or corrected for
+; differences in biophysical-properties
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report yield-weighted-copying-strategy
   report get-strategy "yield-weighted-copy" true true [ [lp lm] -> yield-copying-algorithm lp lm false false ]
@@ -1647,6 +2064,16 @@ to-report yield-copying-algorithm [lp lm mean? correct-bp?]
   ]
   report land-use (weighted-choice-table lu-table)
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; YieldT
+;
+; Various yield-weighted copying algorithms that use yields from multiple
+; previous ticks as a basis for copying. The options are to use the average or
+; total yields (the latter effectively making it more likely that more popularly
+; applied land uses will be chosen), and to choose among the maxima, or make a
+; probabilistic weighted choice
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report yield-weighted-temporal-copying-strategy
   report get-strategy "yield-t-weighted-copy" true true [ [lp lm] -> temporal-yield-copying-algorithm lp lm false false ]
@@ -1717,7 +2144,12 @@ to-report temporal-yield-copying-algorithm [lp lm best? mean?]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
 end
 
-; parcel
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; {patch} expected-yield
+;
+; Used by 'Smart' strategies to calculate an expected yield on this patch based
+; on an actual yield on another patch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report expected-yield [ other-lp ]
   let other-bp [biophysical-properties] of other-lp
@@ -1739,6 +2171,9 @@ end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Presets
+;
+; These procedures allow preset environment and sub-population parameters to
+; be chosen by the user, as per published experiments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to set-env-param-imitation [environment]
@@ -1889,6 +2324,16 @@ end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Utilities
+;
+; These procedures provide various utility functions for use by other procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; combinations
+;
+; Implement the number of combinations of n things taken r at a time, ideally
+; without losing too much accuracy
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report combinations [ n r ]
@@ -1901,6 +2346,13 @@ to-report combinations [ n r ]
   ]
   report comb
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; parse-dist
+;
+; Take a string input to one of the *-dist parameters and parse it into a list
+; that can be used by sample()
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report parse-dist [ dist-str ]
   if member? (first dist-str) map [ i -> (word i) ] n-values 10 [ i -> i ] [
@@ -1918,7 +2370,11 @@ to-report parse-dist [ dist-str ]
   report fput (item 0 name-param) param-list
 end
 
-; utility
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; sample
+;
+; Report a sample from a distribution list
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report sample [ dist ]
   let dist-name first dist
@@ -1983,7 +2439,21 @@ to-report sample [ dist ]
   ])
 end
 
-; utility
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; weighted-choice-*
+;
+; weighted-choice: Make a weighted choice among some agents using a
+; numeric-reporter called for each agent to get the weight.
+;
+; weighted-choice-table: Make a weighted choice among keys of the table using
+; values of the keys as weights
+;
+; weighted-choice-lists: Make a weighted choice among options using weights
+; as weights
+;
+; All these procedures end up calling weighted-choice-lists(), which checks
+; that none of the weights are negative.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to-report weighted-choice [ some-agents numeric-reporter ]
   let options []
@@ -1997,18 +2467,6 @@ to-report weighted-choice [ some-agents numeric-reporter ]
   report weighted-choice-lists options weights
 end
 
-to-report best-choice [ some-agents numeric-reporter ]
-  let options []
-  let weights []
-
-  ask some-agents [
-    set options lput self options
-    set weights lput (runresult numeric-reporter) weights
-  ]
-
-  report best-choice-lists options weights
-end
-
 to-report weighted-choice-table [ a-table ]
   let options []
   let weights []
@@ -2020,32 +2478,6 @@ to-report weighted-choice-table [ a-table ]
 
   report weighted-choice-lists options weights
 end
-
-to-report best-choice-table [ a-table ]
-  let options []
-  let weights []
-
-  foreach table:keys a-table [ key ->
-    set options lput key options
-    set weights lput (table:get a-table key) weights
-  ]
-
-  report best-choice-lists options weights
-end
-
-to-report deterministic-best-choice-table [ a-table ]
-  let options []
-  let weights []
-
-  foreach table:keys a-table [ key ->
-    set options lput key options
-    set weights lput (table:get a-table key) weights
-  ]
-
-  report deterministic-best-choice-lists options weights
-end
-
-; utility
 
 to-report weighted-choice-lists [ options weights ]
   let neg-wgt? reduce [ [ so-far next ] -> so-far or next < 0 ] fput false weights
@@ -2066,6 +2498,37 @@ to-report weighted-choice-lists [ options weights ]
   report item ix options
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; best-choice-*
+;
+; As per weighted-choice, but makes a random choice among those with the highest
+; weights. There is no need for the weights to be non-negative
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-report best-choice [ some-agents numeric-reporter ]
+  let options []
+  let weights []
+
+  ask some-agents [
+    set options lput self options
+    set weights lput (runresult numeric-reporter) weights
+  ]
+
+  report best-choice-lists options weights
+end
+
+to-report best-choice-table [ a-table ]
+  let options []
+  let weights []
+
+  foreach table:keys a-table [ key ->
+    set options lput key options
+    set weights lput (table:get a-table key) weights
+  ]
+
+  report best-choice-lists options weights
+end
+
 to-report best-choice-lists [ options weights ]
   let ixes reduce [
     [ so-far next ] -> ifelse-value length so-far = 0 [ (list next) ] [
@@ -2075,6 +2538,26 @@ to-report best-choice-lists [ options weights ]
     ]
   ] fput [] range length weights
   report item (one-of ixes) options
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; deteriministic-best-choice-*
+;
+; As per best-choice, but makes a deterministic choice among those with the
+; highest weights. There is no implementation of deterministic-best-choice
+; with agents and a reporter because this is not used anywhere in the code.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-report deterministic-best-choice-table [ a-table ]
+  let options []
+  let weights []
+
+  foreach table:keys a-table [ key ->
+    set options lput key options
+    set weights lput (table:get a-table key) weights
+  ]
+
+  report deterministic-best-choice-lists options weights
 end
 
 to-report deterministic-best-choice-lists [ options weights ]
@@ -2099,6 +2582,15 @@ to-report deterministic-best-choice-lists [ options weights ]
   report choice
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Palettes for Land Uses and Sub-populations
+;
+; Greens, yellows and browns for land uses allowing them to be visualized on the
+; space and in plots; other colours for sub-populations with a similar purpose.
+; Values offset from NetLogo named colours are used so that if the lists are
+; exhausted, randomly-assigned NetLogo colours will look different.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to-report lu-colour-list
   report (list (green - 1) (brown - 2) (yellow - 2) (lime - 2) (turquoise - 1)
     (green + 1) (turquoise + 2) (brown + 1) (lime + 1) (brown - 3) (green - 2) (yellow - 3) )
@@ -2110,6 +2602,9 @@ end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Unit testing procedures
+;
+; These procedures support unit-testing, and are from the template NetLogo
+; model GitHub repo at https://github.com/garypolhill/NetLogo-GPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -2176,10 +2671,11 @@ to assert-false [ msg get? ]
   ])
 end
 
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Notification procedures
+;
+; Provide standard warning, error, note and progress messages. These procedures
+; are from the template NetLogo model at https://github.com/garypolhill/NetLogo-GPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to output-error [string]
@@ -3219,39 +3715,112 @@ NIL
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+This is a reimplementation of the 'FEARLUS-0' family of models, which uses bitstrings as the basis for representing biophysical characteristics, land uses, climate and economy. The original version was implemented in ObjC-Swarm. It does not include the full implementation of the FEARLUS-0 ObjC-Swarm codebase, but is intended to provide enough functionality to replicate the experiments in Polhill et al. (2001), Gotts et al. (2003) and Gotts and Polhill (2009, 2010); albeit with a larger environment. (Work in the 2001, 2003 and 2009 papers mainly used environments with 7 by 7 patches; the 2010 paper showed the effects on some of the earlier experiments of using larger environments.)
+
+The main motivation for the reimplementation has been to provide a working basis for a [reusable building-block](https://www.agentblocks.org/) for the weighted selection algorithms using in the decision-making strategies in FEARLUS.
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+A full description of the model is best obtained by reading the references below -- these at least describe what the model _should_ do!
+
+Essentially, `land-managers` are the decision-making agents in the model, nominally representing farmers. They have to choose a `land-use` for each of the one or more `patches` of land they own, using a decision-making `strategy` that is determined by parameters for the `sub-population` to which they belong.
+
+The `climate` and `economy` bitstrings are then determined; they can vary as a probability of 'flipping' each bit (`bitstring:jitter` implements this), set from `p-climate-change` and `p-economy-change`. `Land-managers` do not know the `climate` and `economy` that will determine their `yield` when making the decision; they do know the `biophysical-properties` of the `patch` they are making the decision for.
+
+Next, a `yield` for each `patch` is calculated as the 'match' between the bitstrings of the `patch`'s `biophysical-properties`, and two global temporally-varying bitstrings called `climate` and `economy`, and generally referred to as 'external conditions'. A `break-even-threshold` is subtracted from the `yield` and accumulated in the `land-manager`'s `wealth`.
+
+If, after the `wealth` from all parcels has been accumulated, the `wealth` is negative, then the `land-manager` must sell their `patches` at a fixed `patch-price` until either they have no more land, or their `wealth` is non-negative. If they have no `patches` left, then they 'die'.
+
+Each `patch` sold is then allocated to one-of a neighbour with at least the `patch-price` in their `wealth`, and a new in-migrant `land-manager`, with a randomly allocated `sub-population`.
+
+Over time, more successful `strategies` for deciding `land-uses` lead to `land-managers` of that `sub-population` owning more land -- since they are less likely to need to sell land.
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Switch `random-seed?` on to get a different seed each run. You can also used a fixed seed for `go` (after `setup`) by switching `use-go-seed?` on.
+
+### Environments
+
+Set the environmental parameters according to the experiment you want to run. You can do this for some presets using the `imit-2001-env` drop-down and the `Set 2001 Env` button. Note that parameters like `neighbour-noise-min` and `neighbour-noise-max`, which disrupt the access `land-managers` have to the `biophysical-properties` of `patches` belonging to their neighbours, though available in FEARLUS, were always set to zero in published work. Similarly, `neighbour-weight-adjust` was always set to 1. This parameter alters the amount of weight `land-managers` give to information from neighbours' `patches` in relation to information from their own.
+
+The environmental parameters are:
+
+  + `patch-bitstring-length`: The number of bits of spatially-varying, but temporally constant information determine the `yield`.
+  + `climate-bitstring-length` and `economy-bitstring-length`: We generally referred to these as 'external conditions', which vary over time, but not space. Having two such bitstrings allows you to set one to change more rapidly than the other, however, using `p-climate-change` and `p-economy-change`.
+  + `break-even-threshold`: Subtracted from the match between the bitstring of the `land-use` chosen and the concatenated patch, `climate` and `economy` bitstrings, this parameter determines how much `yield` a `land-manager` must make per `patch` to make a profit.
+  + `patch-price`: Fixed price to give to `land-managers` for each `patch` they have to sell when they have negative `wealth`.
+  + `neighbourhood`: Choose between `neighbors` (Moore) `neighbors4` (von Neumann) and a simulation of a hexagonal neighbourhood function that still uses square cells.
+  + `n-land-use`: Number of `land-uses` available to choose from.
+  + `p-lu-wild`: `Land-uses` comprise a `match` bitstring and a `wild-card` bitstring. Where the `wild-card` bitstring is 1, the `land-use` will always match with the `patch`, `climate` or `economy` as applicable. Published experiments with FEARLUS set this parameter to zero.
+  + `n-clump-swaps`: Limits the number of bit-swaps between pairs of `biophysical-properties` during `setup`, designed to make neighbouring `patches` have more similar `biophysical-properties` than more distant ones, in accordance with [Tobler's Law](https://en.wikipedia.org/wiki/Tobler%27s_first_law_of_geography). The higher this number, the more similar neighbouring `patches` will be.
+
+### Sub-populations
+
+`Land-managers` are grouped into `sub-populations` according to the ways in which each `sub-population` makes decisions. The original FEARLUS source code allowed an arbitrary number of `sub-populations` to be parameterized, even though we typically had two. While we could have had parameters like `sp1-aspiration-dist` and `sp2-aspiration-dist`, fixing the number of `sub-populations` to two, we wanted to retain the flexibility. The Interface tab therefore provides the tools to configure `sub-population` parameters one at a time. These parameters are:
+
+  + `new-subpop-p`: What is the probability that a `land-manager` will be created from this `sub-population`? If you want these to be equal, then you can set it to zero while creating each `sub-population`, and then use the `=P(sp)` button afterwards to set the probabilities.
+  + `new-subpop-initial-strategy`: select a `strategy` from the chooser. This `strategy` is used during initialization only, and hence must not use prior information. `Random` is a typical choice.
+  + `new-subpop-satisfice-strategy`: select a `strategy` from the chooser to use when the `land-manager` has met their `aspiration` for `yield`. `Habit` is a typical choice.
+  + `new-subpop-imitative-strategy`: select a `strategy` from the chooser to use when the `land-manager` has decided to use an imitative `strategy`. There are many options to use here -- you can look in the code tab for more information about them. Imitative strategies use information from `patches` owned by the `land-manager`'s neighbours as well as from their own `parcels-list`. In Polhill et al. (2001), we compared `MajorityWeighted` (`SI`) with `SmartCopyBest` (`II`) and `WeightedYieldCopy` (`YI`).
+  + `new-subpop-experiment-strategy`: select a `strategy` from the chooser to use when the `land-manager` is neither imitating nor satisficing. Though this parameter uses the word 'experiment' in its name, suggesting `Random` as a typical choice, in Polhill et al. (2001), we also used `StableMatch` (`OD`), `BestMatch` (`OS`), `StableLast` (`OD`) and `LastBest` (`LS`). 
+  + `new-subpop-nbr-weight-dist`: the distribution from which to initialize the `nbr-weight` of `land-managers` in this `sub-population`. Typically, we set this to `1`. However, like all *`-dist` parameters, as well as just writing the number you want used, you can also specify a distribution from which to sample:
+    + `U[` _min_ _max_ `]` -- uniform distribution with specified minimum and (non-inclusive) maximum.
+    + `UI[` _min_ _max_ `]` -- uniform integer distribution with specified minimum and (inclusive) maximum.
+    + `N[` _mean_ _sd_ `]` -- normal distribution with specified mean and standard deviation.
+    + `NT` _mean_ _sd_ _min_ _max_ `]` -- truncated normal distribution with specified mean, standard deviation, minimum and maximum.
+  + `new-subpop-p-imitate-dist`: the distribution from which to sample the `p-imitate` of `land-managers` belonging to this `sub-population`.
+  + `new-subpop-aspiration-dist`: the distribution from which to sample the `aspiration`.
+  + `new-subpop-memory-size-dist`: the distribution from which to sample the `memory-size`. This determines, for some strategies (specifically, *`LastN`* and *`YieldT`*), how far back in time `land-managers` can look when collating information on which to base their decision.
+
+Once you have set the above parameters, use `subpop-name` to give this `sub-population` a unique name, and then press the `Add Subpop` button. If you press `Add Last Subpop` the `new-subpop-p` will be calculated automatically so that the sum of probabilities is `1`. If you have made a mistake, you can use `Remove Subpop` to delete a `sub-population` with the `subpop-name`, and the `Clear Subpops` button will delete them all. If you think you will want to reuse this `subpop-str`, then use the `new` button above `subpop-file` to choose a new sub-population CSV file, and press `Save Subpops` to save the data. If you switch `use-subpop-file?` on, then the `subpop-file` will be used to set the `sub-population` parameters during `setup`. This is essential when running in headless mode.
+
+You can use the `imit-2001-sp` chooser to select a `sub-population` configuration from Polhill et al. (2001) as labelled in that paper, and the `Add 2001 SP` button to add it to the `subpop-str`.
+
+### Saving bitstrings
+
+The `use-patch-file?`, `use-lu-file?`, `use-climate-file?` and `use-economy-file?` switches all work in a similar way. If the corresponding *-`file` parameter gives the name of a file that exists, then the data will be loaded from that file. If it does not, then the parameters as explained above will be used to generate the configuration, which is then saved. These files all have a CSV format. The `use-subpop-file?` works similarly; if the `subpop-file` does not exist, then the data in `subpop-str` are used to save the `sub-population` parameters.
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Look for lock-in in land use -- when all patches have the same land use -- and which sub-population ends up owning more land than which other sub-population. You can see the time series in the plots, and if you want to see the spatial distribution at any one time, use the `visualize` drop-down to select the one you want and then press the `viz` button.
 
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+One of the main results from FEARLUS-0 was exploring non-transitivities in different _strategies_ land managers might use to choose land uses for the patches of land they own; and especially imitative and non-imitative strategies. These non-transitivities happen when strategy A beats strategy B, B beats C, but A does not beat C. _Purely_ imitative strategies, which never choose a land-use that does not appear on one of their patches or those of a neighbouring patch, will eventually lead to lock-in. As the climate or economy (generally called 'external conditions' in published work) change, the locked in land use can become unfavourable, and eventually all land managers go bankrupt each tick until the locked-in land use becomes favourable again. Polhill et al. (2016) showed an illustration of the phenomenon as part of demonstrating issues with simulating 'regime shifts'.
+
+Try selecting II and HRYI from imit-2001-sp, then HRYI and SI, and then II and SI. With respect to number of patches owned by land-managers in each sub-population, II will mostly beat HRYI, and HRYI mostly beats SI, but the lock-in issue will lead to II and SI not typically beating each other.
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+The FEARLUS-1 family of models -- and in particular [FEARLUS-SPOMM](https://github.com/garypolhill/FEARLUS-SPOMM) -- replaced bitstrings with look-up tables to determine yields, and added more sophisticated decision-making algorithms, including case-based reasoning. With ObjC-Swarm now being obsolete, a NetLogo re-implementation of FEARLUS-1 (including FEARLUS-SPOMM) would be a useful piece of work for the purposes of verification of the results reported using that model. 
 
 ## NETLOGO FEATURES
 
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
+Bitstrings have been implemented in an [extension](https://github.com/garypolhill/netlogo-bitstring). Extensive use of anonymous procedures/reporter syntax has been made to implement the strategies.
 
-## RELATED MODELS
+One of the most difficult things was handling the fact that a user might want to run an experiment with multiple sub-populations. Though typical experiments with FEARLUS involved two subpopulations at a time, the original FEARLUS code allowed an arbitrary number of sub-populations to be specified, and we wanted to implement that here. The workaround was to use a string parameter that stored all of the sub-populations, while providing parameters and buttons to add one sub-population at a time from the GUI. It would have been preferable to use a monitor to show the `subpop-str` to avoid the user editing it at all; however, there are no 'multiline' monitors, and `\n` in a monitored string is treated as a space.
 
-(models in the NetLogo Models Library and elsewhere which are of related interest)
+Another 'nice-to-have' would be a `neighbors6` function that simulates a hexagonal neighbourhood -- nicer still would be the capability to configure the `world` to comprise tessellated hexagons instead of squares. The advantage of a hexagonal layout is that all the six neighbours of each hexagon have the same Euclidean distance from the central hexagon. With `neighbors`, the corner cells have distance `sqrt 2` while the edges have distance `1`, while `neighbors4` ignores the corner cells. For now, a hexagonal neighbourhood can be simulated by adding two opposite corner cells `neighbors4`.
 
-## CREDITS AND REFERENCES
+## CREDITS 
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+The models was designed by Nick Gotts, Alistair Law and Gary Polhill. It was implemented by Gary Polhill.
+
+## REFERENCES
+
+Polhill, J. G., Gotts, N. M. and Law, A. N. R. (2001) Imitative versus nonimitative strategies in a land-use simulation. _Cybernetics and Systems_ **32** (1-2), 285-307. (doi:[10.1080/019697201300001885](https://doi.org/10.1080/019697201300001885))
+
+Gotts, N. M., Polhill, J. G. and Law, A. N. R. (2003) Aspiration levels in a land use simulation. _Cybernetics and Systems_ **34** (8), 663-683. (doi:[10.1080/716100277](https://doi.org/10.1080/716100277))
+
+Gotts, N. M. and Polhill, J. G. (2009) When and how to imitate your neighbours: Lessons from and for FEARLUS. _Journal of Artificial Societies and Social Simulation_ **12** (3), 2. [https://www.jasss.org/12/3/2.html](https://www.jasss.org/12/3/2.html)
+
+Gotts, N. M. and Polhill, J. G. (2010) Size matters: large-scale replications of experiments with FEARLUS. _Advances in Complex Systems_ **13** (4), 453-467. (doi:[10.1142/S0219525910002670](https://doi.org/10.1142/S0219525910002670))
+
+Polhill, J. G., Filatova, T., Schlüter, M. and Voinov, A. (2016) Modelling systemic change in coupled socio-environmental systems. _Environmental Modelling and Software_ **75**, 318-332. (doi:[10.1016/j.envsoft.2015.10.017](https://doi.org/10.1016/j.envsoft.2015.10.017))
+
+## ACKNOWLEDGEMENTS
+
+This work was funded by the Scottish Government over a series of projects between 1998 and 2009.
 
 ## LICENCE
 ```text
@@ -3932,6 +4501,17 @@ NIL
 ```
 
 ## ChangeLog
+
+2025-05-05 Gary Polhill <gary.polhill@hutton.ac.uk>
+
+  * First complete Info tab draft
+  * Procedure comments
+  * Coupled of bug fixes (forgot to deduce land-parcel-price from the wealth, and yield calculation did not use the biophysical-properties of the patch, but somehow of the land-use (surprising this did not lead to an error))
+
+2025-05-02 Gary Polhill <gary.polhill@hutton.ac.uk>
+
+  * First at least apparently working version of FEARLUS 0
+  * HRYI, II and RS have been tested, and Environments 1 and 2
 
 2024-01-26 Gary Polhill <gary.polhill@hutton.ac.uk>
 
