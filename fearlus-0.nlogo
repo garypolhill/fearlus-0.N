@@ -2059,7 +2059,9 @@ to-report yield-copying-algorithm [lp lm mean? correct-bp?]
   ]
   if mean? [
     foreach table:keys lu-table [ key ->
-      table:put lu-table key (table:get lu-table key / table:get lu-n-table key)
+      table:put lu-table key ifelse-value (0 = table:get lu-n-table key) [ 0 ] [
+        (table:get lu-table key) / (table:get lu-n-table key)
+      ]
     ]
   ]
   report land-use (weighted-choice-table lu-table)
@@ -2138,7 +2140,9 @@ to-report temporal-yield-copying-algorithm [lp lm best? mean?]
   ]
   if mean? [
     foreach table:keys lu-table [ key ->
-      table:put lu-table key (table:get lu-table key / table:get lu-n-table key)
+      table:put lu-table key ifelse-value (0 = table:get lu-n-table key) [ 0 ] [
+        (table:get lu-table key) / (table:get lu-n-table key)
+      ]
     ]
   ]
   report land-use (ifelse-value best? [best-choice-table lu-table] [weighted-choice-table lu-table])
@@ -2806,7 +2810,7 @@ INPUTBOX
 141
 146
 rng-seed
--4.01351177E8
+-1.873399391E9
 1
 0
 Number
@@ -4501,6 +4505,10 @@ This work was funded by the Scottish Government over a series of projects betwee
 ```
 
 ## ChangeLog
+
+2025-09-30 Gary Polhill <gary.polhill@hutton.ac.uk>
+
+  * Fixed bugs in yield-based copying algorithm procedures that could lead to a division by zero when a land use did not appear in the neighbourhood.
 
 2025-05-05 Gary Polhill <gary.polhill@hutton.ac.uk>
 
